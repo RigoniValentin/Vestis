@@ -95,7 +95,7 @@ export const getAccessories = async (req: Request, res: Response) => {
 // @access  Public
 export const getAccessoryById: AsyncRequestHandler = async (req, res) => {
   try {
-    const { idOrSlug } = req.params;
+    const idOrSlug = req.params.idOrSlug as string;
 
     // Intentar buscar por ID o por slug
     let accessory = null;

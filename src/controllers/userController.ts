@@ -27,7 +27,7 @@ export const findUserById = async (
   res: Response
 ): Promise<void> => {
   try {
-    const users = await userService.findUserById(req.params.id);
+    const users = await userService.findUserById(req.params.id as string);
     if (!users) {
       res.status(404).json({ message: "Not user found" });
       return;
@@ -58,7 +58,7 @@ export const updateUser = async (
   res: Response
 ): Promise<void> => {
   try {
-    const users = await userService.updateUser(req.params.id, req.body);
+    const users = await userService.updateUser(req.params.id as string, req.body);
     if (!users) {
       res.status(404).json({ message: "Not user found" });
       return;
@@ -75,7 +75,7 @@ export const deleteUser = async (
   res: Response
 ): Promise<void> => {
   try {
-    const users = await userService.deleteUser(req.params.id);
+    const users = await userService.deleteUser(req.params.id as string);
     if (!users) {
       res.status(404).json({ message: "Not user found" });
       return;
@@ -140,7 +140,7 @@ export const updateUserCapacitations = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     // Se esperan valores booleanos para los 4 permisos de capacitación
     const {
       capSeresArte,
@@ -201,7 +201,7 @@ export const updateUserCapacitationsByEmail = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { email } = req.params;
+    const email = req.params.email as string;
     const {
       capSeresArte,
       capThr,

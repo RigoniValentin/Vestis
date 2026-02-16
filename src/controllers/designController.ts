@@ -73,7 +73,7 @@ export const getDesignById = async (req: Request, res: Response): Promise<void> 
 // @access  Public
 export const getDesignsByYear = async (req: Request, res: Response) => {
   try {
-    const year = parseInt(req.params.year);
+    const year = parseInt(req.params.year as string);
     
     const designs = await Design.find({ 
       year,

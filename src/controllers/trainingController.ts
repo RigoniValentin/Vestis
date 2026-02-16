@@ -9,7 +9,7 @@ export const updateCupos = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { cupos } = req.body;
     if (typeof cupos !== "number") {
       res.status(400).json({ message: "El campo 'cupos' debe ser un número." });
@@ -30,7 +30,7 @@ export const updateCupos = async (
 
 export const getCupos = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const cupos = await trainingService.getCupos(id);
     if (cupos === null) {
       res.status(404).json({ message: "Capacitación no encontrada." });

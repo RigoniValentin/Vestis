@@ -42,7 +42,7 @@ export const findVideoById = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const video = await videosService.findVideoById(id);
     if (!video) {
       res.status(404).json({ message: "Video not found" });
@@ -59,7 +59,7 @@ export const updateVideo = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const data = req.body;
     const updatedVideo = await videosService.updateVideo(id, data);
     if (!updatedVideo) {
@@ -108,7 +108,7 @@ export const deleteVideo = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const deleted = await videosService.deleteVideo(id);
     if (!deleted) {
       res.status(404).json({ message: "Video not found" });

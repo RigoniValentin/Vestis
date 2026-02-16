@@ -55,8 +55,8 @@ export class EventController {
    */
   static async getEventsByMonth(req: Request, res: Response): Promise<void> {
     try {
-      const year = parseInt(req.params.year);
-      const month = parseInt(req.params.month);
+      const year = parseInt(req.params.year as string);
+      const month = parseInt(req.params.month as string);
 
       // Validaciones
       if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
@@ -89,7 +89,7 @@ export class EventController {
    */
   static async getEventById(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const event = await eventService.getEventById(id);
 
       if (!event) {
@@ -195,7 +195,7 @@ export class EventController {
    */
   static async updateEvent(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const updateData: UpdateEventRequest = req.body;
 
       // Validar fechas si se proporcionan
@@ -265,7 +265,7 @@ export class EventController {
    */
   static async deleteEvent(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const event = await eventService.deleteEvent(id);
 
       if (!event) {

@@ -25,7 +25,7 @@ export const findRolesById = async (
   res: Response
 ): Promise<void> => {
   try {
-    const roles = await rolesService.findRolesById(req.params.id);
+    const roles = await rolesService.findRolesById(req.params.id as string);
     if (!roles) {
       res.status(404).json({ message: "Not role found" });
       return;
@@ -56,7 +56,7 @@ export const updateRoles = async (
   res: Response
 ): Promise<void> => {
   try {
-    const roles = await rolesService.updateRoles(req.params.id, req.body);
+    const roles = await rolesService.updateRoles(req.params.id as string, req.body);
     if (!roles) {
       res.status(404).json({ message: "Not role found" });
       return;
@@ -73,7 +73,7 @@ export const deleteRoles = async (
   res: Response
 ): Promise<void> => {
   try {
-    const roles = await rolesService.deleteRoles(req.params.id);
+    const roles = await rolesService.deleteRoles(req.params.id as string);
     if (!roles) {
       res.status(404).json({ message: "Not role found" });
       return;

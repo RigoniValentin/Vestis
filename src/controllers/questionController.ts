@@ -33,7 +33,7 @@ export const answerQuestionVideo1 = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { videoUrl } = req.body;
     if (!videoUrl || !videoUrl.trim()) {
       res.status(400).json({ message: "El link del video es obligatorio." });
@@ -58,7 +58,7 @@ export const answerQuestionVideo2 = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { videoUrl } = req.body;
     if (!videoUrl || !videoUrl.trim()) {
       res.status(400).json({ message: "El link del video es obligatorio." });
@@ -82,7 +82,7 @@ export const rejectQuestion = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { rejectComment } = req.body;
     if (!rejectComment) {
       res

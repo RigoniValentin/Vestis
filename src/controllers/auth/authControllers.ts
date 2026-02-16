@@ -103,7 +103,7 @@ export const refreshToken = async (
       return;
     }
     const updatedUser = await userService.findUserById(
-      req.currentUser._id as string
+      req.currentUser._id as unknown as string
     );
     if (!updatedUser) {
       res.status(404).json({ message: "User not found" });

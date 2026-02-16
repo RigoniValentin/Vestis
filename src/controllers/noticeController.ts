@@ -99,7 +99,7 @@ export class NoticeController {
    */
   static async getNoticeById(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const notice = await noticeService.getNoticeById(id);
 
       if (!notice) {
@@ -201,7 +201,7 @@ export class NoticeController {
    */
   static async updateNotice(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const updateData: UpdateNoticeRequest = req.body;
 
       // Validar fechas si se proporcionan
@@ -271,7 +271,7 @@ export class NoticeController {
    */
   static async deleteNotice(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const deleted = await noticeService.deleteNotice(id);
 
       if (!deleted) {
@@ -302,7 +302,7 @@ export class NoticeController {
    */
   static async toggleNoticeStatus(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = req.params.id as string;
       const notice = await noticeService.toggleNoticeStatus(id);
 
       if (!notice) {
