@@ -2,7 +2,7 @@
 ### ACTUALIZACIÓN DE FECHA DE EXPIRACIÓN DE SUSCRIPCIÓN
 ### ===========================================
 
-@baseUrl = http://localhost:3010/api/v1
+@baseUrl = http://localhost:3016/api/v1
 @adminToken = Bearer YOUR_ADMIN_JWT_TOKEN_HERE
 
 ### ===========================================

@@ -1,35 +1,35 @@
 ### Obtener todos los productos
-GET http://localhost:3010/api/v1/products
+GET http://localhost:3016/api/v1/products
 Content-Type: application/json
 
 ###
 
 ### Obtener productos con filtros y paginación
-GET http://localhost:3010/api/v1/products?page=1&limit=5&sortBy=price&sortOrder=asc&inStock=true
+GET http://localhost:3016/api/v1/products?page=1&limit=5&sortBy=price&sortOrder=asc&inStock=true
 Content-Type: application/json
 
 ###
 
 ### Buscar productos por nombre o descripción
-GET http://localhost:3010/api/v1/products?search=pilates&page=1&limit=10
+GET http://localhost:3016/api/v1/products?search=pilates&page=1&limit=10
 Content-Type: application/json
 
 ###
 
 ### Filtrar productos por categoría y rango de precio
-GET http://localhost:3010/api/v1/products?category={{categoryId}}&minPrice=50&maxPrice=200
+GET http://localhost:3016/api/v1/products?category={{categoryId}}&minPrice=50&maxPrice=200
 Content-Type: application/json
 
 ###
 
 ### Obtener producto por ID
-GET http://localhost:3010/api/v1/products/{{productId}}
+GET http://localhost:3016/api/v1/products/{{productId}}
 Content-Type: application/json
 
 ###
 
 ### Crear nuevo producto (sin imágenes - ESTO FALLARÁ porque las imágenes son obligatorias)
-POST http://localhost:3010/api/v1/products
+POST http://localhost:3016/api/v1/products
 Content-Type: application/json
 
 {
@@ -44,7 +44,7 @@ Content-Type: application/json
 ### Usar Postman, Thunder Client, o curl para enviar archivos
 ### 
 ### Ejemplo con curl:
-### curl -X POST http://localhost:3010/api/v1/products \
+### curl -X POST http://localhost:3016/api/v1/products \
 ###   -F "name=Reformer Pilates Profesional" \
 ###   -F "price=2500.00" \
 ###   -F "description=Reformer de Pilates profesional con resortes ajustables" \
@@ -56,7 +56,7 @@ Content-Type: application/json
 ###
 
 ### Crear producto de ropa
-POST http://localhost:3010/api/v1/products
+POST http://localhost:3016/api/v1/products
 Content-Type: application/json
 
 {
@@ -70,7 +70,7 @@ Content-Type: application/json
 ###
 
 ### Crear producto de nutrición
-POST http://localhost:3010/api/v1/products
+POST http://localhost:3016/api/v1/products
 Content-Type: application/json
 
 {
@@ -84,7 +84,7 @@ Content-Type: application/json
 ###
 
 ### Actualizar producto (sin imágenes - MANTIENE las imágenes existentes)
-PUT http://localhost:3010/api/v1/products/{{productId}}
+PUT http://localhost:3016/api/v1/products/{{productId}}
 Content-Type: application/json
 
 {
@@ -100,7 +100,7 @@ Content-Type: application/json
 ### Usar multipart/form-data
 ### 
 ### Ejemplo REEMPLAZAR imágenes (curl):
-### curl -X PUT http://localhost:3010/api/v1/products/PRODUCT_ID \
+### curl -X PUT http://localhost:3016/api/v1/products/PRODUCT_ID \
 ###   -F "name=Reformer Pilates Profesional V2" \
 ###   -F "price=2750.00" \
 ###   -F "description=Reformer mejorado con nuevas características" \
@@ -110,7 +110,7 @@ Content-Type: application/json
 ###   -F "images=@/ruta/a/nueva_imagen2.jpg"
 ###
 ### Ejemplo AGREGAR imágenes (curl):
-### curl -X PUT http://localhost:3010/api/v1/products/PRODUCT_ID \
+### curl -X PUT http://localhost:3016/api/v1/products/PRODUCT_ID \
 ###   -F "replaceImages=false" \
 ###   -F "images=@/ruta/a/imagen_adicional1.jpg" \
 ###   -F "images=@/ruta/a/imagen_adicional2.jpg"
@@ -118,7 +118,7 @@ Content-Type: application/json
 ###
 
 ### Actualizar solo el stock de un producto
-PUT http://localhost:3010/api/v1/products/{{productId}}/stock
+PUT http://localhost:3016/api/v1/products/{{productId}}/stock
 Content-Type: application/json
 
 {
@@ -129,7 +129,7 @@ Content-Type: application/json
 ###
 
 ### Aumentar stock
-PUT http://localhost:3010/api/v1/products/{{productId}}/stock
+PUT http://localhost:3016/api/v1/products/{{productId}}/stock
 Content-Type: application/json
 
 {
@@ -140,7 +140,7 @@ Content-Type: application/json
 ###
 
 ### Reducir stock
-PUT http://localhost:3010/api/v1/products/{{productId}}/stock
+PUT http://localhost:3016/api/v1/products/{{productId}}/stock
 Content-Type: application/json
 
 {
@@ -151,7 +151,7 @@ Content-Type: application/json
 ###
 
 ### Eliminar producto (eliminación directa de la base de datos)
-DELETE http://localhost:3010/api/v1/products/{{productId}}
+DELETE http://localhost:3016/api/v1/products/{{productId}}
 Content-Type: application/json
 
 ###
@@ -198,7 +198,7 @@ Content-Type: application/json
 # 6. EJEMPLOS DE USO:
 #
 # Crear producto con imágenes (curl):
-# curl -X POST http://localhost:3010/api/v1/products \
+# curl -X POST http://localhost:3016/api/v1/products \
 #   -F "name=Esterilla Yoga Premium" \
 #   -F "price=75.50" \
 #   -F "description=Esterilla antideslizante de alta calidad" \
@@ -210,7 +210,7 @@ Content-Type: application/json
 #   -F "images=@imagen4.jpg"
 #
 # Actualizar producto REEMPLAZANDO todas las imágenes (curl):
-# curl -X PUT http://localhost:3010/api/v1/products/ID_PRODUCTO \
+# curl -X PUT http://localhost:3016/api/v1/products/ID_PRODUCTO \
 #   -F "name=Esterilla Yoga Premium V2" \
 #   -F "price=85.00" \
 #   -F "replaceImages=true" \
@@ -218,12 +218,12 @@ Content-Type: application/json
 #   -F "images=@nueva_imagen2.jpg"
 #
 # Actualizar producto AGREGANDO imágenes (curl):
-# curl -X PUT http://localhost:3010/api/v1/products/ID_PRODUCTO \
+# curl -X PUT http://localhost:3016/api/v1/products/ID_PRODUCTO \
 #   -F "replaceImages=false" \
 #   -F "images=@imagen_adicional.jpg"
 #
 # Actualizar producto SIN cambiar imágenes (JSON):
-# PUT http://localhost:3010/api/v1/products/ID_PRODUCTO
+# PUT http://localhost:3016/api/v1/products/ID_PRODUCTO
 # Content-Type: application/json
 # {
 #   "name": "Esterilla Yoga Premium V2",
@@ -239,7 +239,7 @@ Content-Type: application/json
 #    - Limpieza automática de archivos temporales en caso de error
 #
 # 8. ACCESO A IMÁGENES:
-#    - Las imágenes se sirven desde: http://localhost:3010/uploads/products/nombre_archivo.jpg
+#    - Las imágenes se sirven desde: http://localhost:3016/uploads/products/nombre_archivo.jpg
 #    - Los productos devuelven URLs completas en los campos "image" e "images"
 #    - Logging detallado para debugging y monitoreo
 

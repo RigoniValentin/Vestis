@@ -5,4 +5,12 @@ npm-debug.log
 .DS_Store
 package-lock.json
 dist
+
+# Archivos subidos por usuarios (se generan en el servidor)
+uploads/accessories/*
+uploads/designs/*
+uploads/products/*
+uploads/tshirt-configs/*
+uploads/tshirt-types/*
+!uploads/**/.gitkeep
 .vscode

@@ -2,7 +2,7 @@
 ### AVISOS IMPORTANTES API - Pruebas Completas
 ### ===========================================
 
-@baseUrl = http://localhost:3010/api/v1
+@baseUrl = http://localhost:3016/api/v1
 @adminToken = Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2N2I1NTQ0ZjdmOTNlZDVhM2IyYmNjM2MiLCJpYXQiOjE3MzQ2MTU1OTYsImV4cCI6MTczNDcwMTk5Nn0.Zr5ViF6tPEeqFIBwQKnhOb7RkGVPH8-YUeHANz0TLjw
 @userToken = Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2N2I1NTQ3ZjdmOTNlZDVhM2IyYmNjNDAiLCJpYXQiOjE3MzQ2MTU2MjMsImV4cCI6MTczNDcwMjAyM30.rvjJk-q_S9FTqZfzpqlr7IZwI_rD1BYr3qV0m8Z4hgc
 

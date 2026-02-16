@@ -53,6 +53,11 @@ import categoryRoutes from "./categoryRoutes";
 import productRoutes from "./productRoutes";
 import eventRoutes from "./eventRoutes";
 import noticeRoutes from "./noticeRoutes";
+import designRoutes from "./designRoutes";
+import tshirtTypeRoutes from "./tshirtTypeRoutes";
+import customOrderRoutes from "./customOrderRoutes";
+import tshirtConfigRoutes from "./tshirtConfigRoutes";
+import accessoryRoutes from "./accessoryRoutes";
 import {
   applyCoupon,
   cancelPayment,
@@ -262,6 +267,21 @@ export default () => {
 
   // Rutas de productos de la tienda
   router.use("/products", productRoutes);
+
+  // Rutas de diseños/estampas para remeras personalizadas
+  router.use("/designs", designRoutes);
+
+  // Rutas de tipos de remeras/musculosas
+  router.use("/tshirt-types", tshirtTypeRoutes);
+
+  // Rutas de órdenes personalizadas
+  router.use("/custom-orders", customOrderRoutes);
+
+  // Rutas de configuraciones de remeras personalizadas
+  router.use("/tshirt-configs", tshirtConfigRoutes);
+
+  // Rutas de accesorios
+  router.use("/accessories", accessoryRoutes);
   // #endregion
 
   // #region Events Routes

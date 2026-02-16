@@ -1,17 +1,17 @@
 ### Obtener todas las categorías
-GET http://localhost:3010/api/v1/categories
+GET http://localhost:3016/api/v1/categories
 Content-Type: application/json
 
 ###
 
 ### Obtener categoría por ID
-GET http://localhost:3010/api/v1/categories/{{categoryId}}
+GET http://localhost:3016/api/v1/categories/{{categoryId}}
 Content-Type: application/json
 
 ###
 
 ### Crear nueva categoría
-POST http://localhost:3010/api/v1/categories
+POST http://localhost:3016/api/v1/categories
 Content-Type: application/json
 
 {
@@ -22,7 +22,7 @@ Content-Type: application/json
 ###
 
 ### Crear categoría de ropa
-POST http://localhost:3010/api/v1/categories
+POST http://localhost:3016/api/v1/categories
 Content-Type: application/json
 
 {
@@ -33,7 +33,7 @@ Content-Type: application/json
 ###
 
 ### Crear categoría de nutrición
-POST http://localhost:3010/api/v1/categories
+POST http://localhost:3016/api/v1/categories
 Content-Type: application/json
 
 {
@@ -44,7 +44,7 @@ Content-Type: application/json
 ###
 
 ### Actualizar categoría
-PUT http://localhost:3010/api/v1/categories/{{categoryId}}
+PUT http://localhost:3016/api/v1/categories/{{categoryId}}
 Content-Type: application/json
 
 {
@@ -55,7 +55,7 @@ Content-Type: application/json
 ###
 
 ### Eliminar categoría (eliminación directa de la base de datos)
-DELETE http://localhost:3010/api/v1/categories/{{categoryId}}
+DELETE http://localhost:3016/api/v1/categories/{{categoryId}}
 Content-Type: application/json
 
 ###

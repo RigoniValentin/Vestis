@@ -202,7 +202,7 @@ export const createPreference = async (req: Request, res: Response) => {
     const successUrl =
       process.env.NODE_ENV === "production"
         ? `https://pilatestransmissionsarah.com/pagoAprobado?state=${userId}`
-        : `http://localhost:3010/pagoAprobado?state=${userId}`;
+        : `http://localhost:3016/pagoAprobado?state=${userId}`;
 
     const body = {
       items: req.body.map((item: any) => ({
@@ -298,7 +298,7 @@ export const capturePreference = async (
     const successUrl =
       process.env.NODE_ENV === "production"
         ? `https://pilatestransmissionsarah.com/pagoAprobado?state=${userId}`
-        : `http://localhost:3010/pagoAprobado?state=${userId}`;
+        : `http://localhost:3016/pagoAprobado?state=${userId}`;
     console.log("capturePreference: Redirecting to", successUrl);
     res.redirect(successUrl);
   } catch (error) {
