@@ -1,11 +1,8 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-// Tipos de productos simplificados
-export type ProductType = "remera" | "musculosa";
-
 export interface ITShirtType extends Document {
   description: string; // Descripción del tipo de prenda
-  productType: ProductType; // remera o musculosa
+  productType: string; // Tipo de producto dinámico (ej: remera, musculosa, etc.)
   sampleImage?: string; // Imagen de muestra del tipo de prenda
   isActive: boolean;
   createdAt: Date;
@@ -23,10 +20,8 @@ const TShirtTypeSchema: Schema = new Schema(
     productType: {
       type: String,
       required: [true, "El tipo de producto es requerido"],
-      enum: {
-        values: ["remera", "musculosa"],
-        message: "El tipo debe ser: remera o musculosa",
-      },
+      trim: true,
+      lowercase: true,
     },
     sampleImage: {
       type: String,
