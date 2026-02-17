@@ -2,8 +2,8 @@
   "compilerOptions": {
     "target": "ES2021",
     "skipLibCheck": true,
-    "outDir": "./dist",
-    "rootDir": "./",
+    "outDir": "dist",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
@@ -14,7 +14,7 @@
     },
     "typeRoots": ["@types", "./node_modules/@types"]
   },
-  "include": ["src", "src/app.ts"],
+  "include": ["src"],
   "exclude": ["node_modules"],
   "ts-node": {
     "require": ["tsconfig-paths/register"]
