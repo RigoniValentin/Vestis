@@ -5,7 +5,6 @@ import {
   createProduct,
   updateProduct,
   deleteProduct,
-  updateStock,
 } from "@controllers/productController";
 import { uploadProductImages, handleUploadError } from "@middlewares/upload";
 
@@ -25,8 +24,5 @@ router.put("/:id", uploadProductImages, handleUploadError, updateProduct);
 
 // DELETE /api/v1/products/:id - Eliminar producto
 router.delete("/:id", deleteProduct);
-
-// PUT /api/v1/products/:id/stock - Actualizar stock específicamente
-router.put("/:id/stock", updateStock);
 
 export default router;

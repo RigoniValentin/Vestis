@@ -5,7 +5,6 @@ export interface IProduct extends Document {
   price: number;
   description: string;
   category: mongoose.Types.ObjectId;
-  stock: number;
   image: string; // Imagen principal
   images: string[]; // Array de todas las imágenes (máximo 4)
   createdAt: Date;
@@ -36,12 +35,6 @@ const ProductSchema: Schema = new Schema(
       ref: "Category",
       required: [true, "La categoría es requerida"],
     },
-    stock: {
-      type: Number,
-      required: [true, "El stock es requerido"],
-      min: [0, "El stock no puede ser negativo"],
-      default: 0,
-    },
     image: {
       type: String,
       required: false, // Se establece automáticamente en el middleware pre('save')
@@ -68,8 +61,6 @@ const ProductSchema: Schema = new Schema(
 ProductSchema.index({ name: 1 });
 ProductSchema.index({ category: 1 });
 ProductSchema.index({ price: 1 });
-ProductSchema.index({ stock: 1 });
-
 // Middleware para establecer imagen principal automáticamente
 ProductSchema.pre("save", function (this: IProduct, next) {
   console.log(

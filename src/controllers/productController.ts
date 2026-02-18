@@ -88,7 +88,6 @@ export const getProducts = async (
       category,
       minPrice,
       maxPrice,
-      inStock,
       page = "1",
       limit = "10",
       sortBy = "createdAt",
@@ -107,10 +106,6 @@ export const getProducts = async (
       filter.price = {};
       if (minPrice) filter.price.$gte = Number(minPrice);
       if (maxPrice) filter.price.$lte = Number(maxPrice);
-    }
-
-    if (inStock === "true") {
-      filter.stock = { $gt: 0 };
     }
 
     if (search) {
@@ -218,7 +213,7 @@ export const createProduct = async (
   try {
     logOperation("CREAR_PRODUCTO_INICIO", { body: req.body });
 
-    const { name, price, description, category, stock } = req.body;
+    const { name, price, description, category } = req.body;
     const files = req.files as Express.Multer.File[];
 
     // Validación de campos obligatorios
@@ -303,7 +298,6 @@ export const createProduct = async (
       price: Number(price),
       description: description.trim(),
       category,
-      stock: stock ? Number(stock) : 0,
       images: imageUrls,
       // image será establecida automáticamente por el middleware del modelo
     };
@@ -360,7 +354,7 @@ export const updateProduct = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, price, description, category, stock, replaceImages } =
+    const { name, price, description, category, replaceImages } =
       req.body;
     const files = req.files as Express.Multer.File[];
 
@@ -411,17 +405,6 @@ export const updateProduct = async (
     }
     if (description !== undefined) product.description = description.trim();
     if (category !== undefined) product.category = category;
-    if (stock !== undefined) {
-      if (isNaN(Number(stock)) || Number(stock) < 0) {
-        await cleanupTempFiles(files);
-        res.status(400).json({
-          success: false,
-          message: "El stock debe ser un número válido mayor o igual a 0",
-        });
-        return;
-      }
-      product.stock = Number(stock);
-    }
 
     // Función auxiliar para convertir valores a boolean de manera robusta
     const toBooleanSafe = (value: any): boolean => {
@@ -634,80 +617,4 @@ export const deleteProduct = async (
   }
 };
 
-// PUT /api/v1/products/:id/stock - Actualizar stock específicamente
-export const updateStock = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { id } = req.params;
-    const { stock, operation } = req.body; // operation: 'set', 'add', 'subtract'
 
-    const product = await Product.findById(id);
-
-    if (!product) {
-      res.status(404).json({
-        success: false,
-        message: "Producto no encontrado",
-      });
-      return;
-    }
-
-    if (typeof stock !== "number" || stock < 0) {
-      res.status(400).json({
-        success: false,
-        message: "El stock debe ser un número válido mayor o igual a 0",
-      });
-      return;
-    }
-
-    const previousStock = product.stock;
-
-    switch (operation) {
-      case "set":
-        product.stock = stock;
-        break;
-      case "add":
-        product.stock += stock;
-        break;
-      case "subtract":
-        product.stock = Math.max(0, product.stock - stock);
-        break;
-      default:
-        product.stock = stock; // Por defecto, establecer el valor
-    }
-
-    const updatedProduct = await product.save();
-
-    logOperation("STOCK_ACTUALIZADO", {
-      id: updatedProduct._id,
-      operacion: operation || "set",
-      stockAnterior: previousStock,
-      stockNuevo: updatedProduct.stock,
-      cambio: stock,
-    });
-
-    res.json({
-      success: true,
-      message: "Stock actualizado exitosamente",
-      data: {
-        id: updatedProduct._id,
-        name: updatedProduct.name,
-        previousStock,
-        newStock: updatedProduct.stock,
-        operation,
-      },
-    });
-  } catch (error) {
-    logOperation("ERROR_ACTUALIZAR_STOCK", {
-      id: req.params.id,
-      error: error instanceof Error ? error.message : error,
-    });
-
-    res.status(500).json({
-      success: false,
-      message: "Error al actualizar el stock",
-      error: error instanceof Error ? error.message : error,
-    });
-  }
-};

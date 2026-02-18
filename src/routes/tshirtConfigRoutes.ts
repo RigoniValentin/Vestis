@@ -7,7 +7,6 @@ import {
   getTshirtConfigStats,
   createTshirtConfig,
   updateTshirtConfig,
-  updateTshirtConfigStock,
   deleteTshirtConfig,
   toggleTshirtConfigActive,
 } from "../controllers/tshirtConfigController";
@@ -50,7 +49,6 @@ router.put(
   compressAndSaveConfigImage,
   updateTshirtConfig
 );
-router.put("/:id/stock", verifyToken, verifyRole(["admin"]), updateTshirtConfigStock);
 router.delete("/:id", verifyToken, verifyRole(["admin"]), deleteTshirtConfig);
 router.patch("/:id/toggle-active", verifyToken, verifyRole(["admin"]), toggleTshirtConfigActive);
 

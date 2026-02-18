@@ -118,7 +118,7 @@ export const createCustomOrder = async (req: Request, res: Response): Promise<vo
       return;
     }
     
-    // Nota: Las validaciones de color, talle y stock ahora se manejan en TShirtConfig
+    // Nota: Las validaciones de color y talle ahora se manejan en TShirtConfig
     // TShirtType solo define si es remera o musculosa
     
     // Buscar la configuración que coincide con tipo + diseño + color
@@ -137,19 +137,6 @@ export const createCustomOrder = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    // Verificar stock para el talle solicitado
-    const stockItem = config.stock.find(
-      (s) => s.size === (size as string).toUpperCase()
-    );
-
-    if (!stockItem || stockItem.quantity < quantity) {
-      res.status(400).json({
-        success: false,
-        message: `Stock insuficiente. Solo hay ${stockItem?.quantity || 0} unidades disponibles para el talle ${size}.`,
-      });
-      return;
-    }
-
     // Calcular precio final usando el precio de la config
     const finalPrice = config.price * quantity;
     
@@ -164,10 +151,6 @@ export const createCustomOrder = async (req: Request, res: Response): Promise<vo
       finalPrice,
       status: "pending",
     });
-    
-    // Actualizar stock (restar cantidad)
-    stockItem.quantity -= quantity;
-    await config.save();
     
     // Populate para devolver data completa
     const populatedOrder = await CustomOrder.findById(order._id);
@@ -270,8 +253,7 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
       return;
     }
     
-    // Nota: La gestión de stock ahora se maneja en TShirtConfig, no en TShirtType
-    // TODO: Implementar lógica de devolución de stock si es necesario
+    // Nota: No se gestiona stock
     
     order.status = "cancelled";
     await order.save();

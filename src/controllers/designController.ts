@@ -119,7 +119,7 @@ export const getAvailableYears = async (req: Request, res: Response) => {
 // @access  Private/Admin
 export const createDesign = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, description, imageUrl, year, tags, isActive } = req.body;
+    const { name, description, imageUrl, imageUrlDark, year, tags, isActive } = req.body;
     
     // Validar campos requeridos
     if (!name || !year) {
@@ -130,11 +130,11 @@ export const createDesign = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Si no se subió una imagen, verificar que se proporcione una URL
-    if (!imageUrl) {
+    // Debe haber al menos una imagen (claro u oscuro)
+    if (!imageUrl && !imageUrlDark) {
       res.status(400).json({
         success: false,
-        message: "Debe subir una imagen del diseño",
+        message: "Debe subir al menos una imagen del diseño (claro u oscuro)",
       });
       return;
     }
@@ -152,7 +152,8 @@ export const createDesign = async (req: Request, res: Response): Promise<void> =
     const design = await Design.create({
       name,
       description,
-      imageUrl,
+      imageUrl: imageUrl || null,
+      imageUrlDark: imageUrlDark || null,
       year: parseInt(year),
       tags: tagsArray,
       isActive: isActive !== undefined ? (isActive === "true" || isActive === true) : true,
@@ -187,9 +188,14 @@ export const updateDesign = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Si se subió una nueva imagen, eliminar la anterior
+    // Si se subió una nueva imagen (claro), eliminar la anterior
     if (req.body.imageUrl && design.imageUrl && req.body.imageUrl !== design.imageUrl) {
       await deleteDesignImage(design.imageUrl);
+    }
+
+    // Si se subió una nueva imagen (oscuro), eliminar la anterior
+    if (req.body.imageUrlDark && design.imageUrlDark && req.body.imageUrlDark !== design.imageUrlDark) {
+      await deleteDesignImage(design.imageUrlDark);
     }
 
     // Procesar tags si vienen en el request

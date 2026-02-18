@@ -3,7 +3,8 @@ import mongoose, { Document, Schema } from "mongoose";
 export interface IDesign extends Document {
   name: string;
   description?: string;
-  imageUrl: string; // URL del PNG del diseño
+  imageUrl: string; // URL del diseño para fondos claros
+  imageUrlDark?: string; // URL del diseño para fondos oscuros
   year: number; // Año del diseño para filtrado
   tags?: string[]; // Etiquetas para búsqueda
   isActive: boolean; // Si está disponible para uso
@@ -26,7 +27,11 @@ const DesignSchema: Schema = new Schema(
     },
     imageUrl: {
       type: String,
-      required: [true, "La imagen del diseño es requerida"],
+      default: null,
+    },
+    imageUrlDark: {
+      type: String,
+      default: null,
     },
     year: {
       type: Number,

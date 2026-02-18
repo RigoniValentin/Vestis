@@ -93,22 +93,18 @@ export const findMatchingConfig = async (req: Request, res: Response): Promise<v
       res.status(404).json({
         success: false,
         available: false,
-        message: "No hay stock disponible para esta combinación",
+        message: "No hay disponibilidad para esta combinación",
       });
       return;
     }
 
-    // Si se especificó talle, verificar stock para ese talle
+    // Si se especificó talle, verificar que el talle exista en sizes
     if (size) {
-      const stockEntry = config.stock.find(
-        (s) => s.size === (size as string).toUpperCase()
-      );
-      const hasStock = stockEntry && stockEntry.quantity > 0;
+      const hasSizeAvailable = config.sizes.includes((size as string).toUpperCase());
 
       res.status(200).json({
         success: true,
-        available: hasStock,
-        stockQuantity: stockEntry?.quantity || 0,
+        available: hasSizeAvailable,
         data: config,
       });
       return;
@@ -133,11 +129,10 @@ export const findMatchingConfig = async (req: Request, res: Response): Promise<v
 // @access  Admin
 export const createTshirtConfig = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { tshirtType, design, color, sizes, stock, productImage, price } = req.body;
+    const { tshirtType, design, color, sizes, productImage, price } = req.body;
 
-    // Parsear sizes y stock si vienen como strings (desde FormData)
+    // Parsear sizes si vienen como strings (desde FormData)
     const parsedSizes = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
-    const parsedStock = typeof stock === 'string' ? JSON.parse(stock) : stock;
     const parsedPrice = typeof price === 'string' ? parseFloat(price) : price;
 
     // Validar que se haya subido una imagen
@@ -169,7 +164,6 @@ export const createTshirtConfig = async (req: Request, res: Response): Promise<v
       design,
       color: color?.toLowerCase(),
       sizes: parsedSizes,
-      stock: parsedStock,
       productImage,
       price: parsedPrice,
     });
@@ -204,7 +198,7 @@ export const createTshirtConfig = async (req: Request, res: Response): Promise<v
 // @access  Admin
 export const updateTshirtConfig = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { tshirtType, design, color, sizes, stock, productImage, price, isActive } = req.body;
+    const { tshirtType, design, color, sizes, productImage, price, isActive } = req.body;
 
     // Si se subió una nueva imagen, eliminar la anterior
     if (productImage && req.file) {
@@ -214,9 +208,8 @@ export const updateTshirtConfig = async (req: Request, res: Response): Promise<v
       }
     }
 
-    // Parsear sizes y stock si vienen como strings (desde FormData)
+    // Parsear sizes si vienen como strings (desde FormData)
     const parsedSizes = sizes ? (typeof sizes === 'string' ? JSON.parse(sizes) : sizes) : undefined;
-    const parsedStock = stock ? (typeof stock === 'string' ? JSON.parse(stock) : stock) : undefined;
     const parsedPrice = price !== undefined ? (typeof price === 'string' ? parseFloat(price) : price) : undefined;
 
     const updateData: any = {};
@@ -224,7 +217,6 @@ export const updateTshirtConfig = async (req: Request, res: Response): Promise<v
     if (design) updateData.design = design;
     if (color) updateData.color = color.toLowerCase();
     if (parsedSizes) updateData.sizes = parsedSizes;
-    if (parsedStock) updateData.stock = parsedStock;
     if (productImage) updateData.productImage = productImage;
     if (parsedPrice !== undefined) updateData.price = parsedPrice;
     if (isActive !== undefined) updateData.isActive = isActive;
@@ -261,51 +253,6 @@ export const updateTshirtConfig = async (req: Request, res: Response): Promise<v
     res.status(500).json({
       success: false,
       message: "Error al actualizar la configuración",
-      error: error.message,
-    });
-  }
-};
-
-// @desc    Actualizar stock de una configuración
-// @route   PUT /api/v1/tshirt-configs/:id/stock
-// @access  Admin
-export const updateTshirtConfigStock = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { stock } = req.body;
-
-    if (!stock || !Array.isArray(stock)) {
-      res.status(400).json({
-        success: false,
-        message: "El campo stock es requerido y debe ser un array",
-      });
-      return;
-    }
-
-    const config = await TshirtConfig.findByIdAndUpdate(
-      req.params.id,
-      { stock },
-      { new: true, runValidators: true }
-    )
-      .populate("tshirtType", "description productType")
-      .populate("design", "name description imageUrl year tags");
-
-    if (!config) {
-      res.status(404).json({
-        success: false,
-        message: "Configuración no encontrada",
-      });
-      return;
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Stock actualizado exitosamente",
-      data: config,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error al actualizar el stock",
       error: error.message,
     });
   }
@@ -384,31 +331,12 @@ export const getTshirtConfigStats = async (req: Request, res: Response) => {
     const activeConfigs = await TshirtConfig.countDocuments({ isActive: true });
     const inactiveConfigs = totalConfigs - activeConfigs;
 
-    // Configs con stock bajo (algún talle con < 5 unidades)
-    const configs = await TshirtConfig.find({ isActive: true });
-    let lowStockCount = 0;
-    let outOfStockCount = 0;
-
-    configs.forEach((config) => {
-      const hasLowStock = config.stock.some(
-        (s) => s.quantity > 0 && s.quantity < 5
-      );
-      const allOutOfStock =
-        config.stock.length === 0 ||
-        config.stock.every((s) => s.quantity === 0);
-
-      if (allOutOfStock) outOfStockCount++;
-      else if (hasLowStock) lowStockCount++;
-    });
-
     res.status(200).json({
       success: true,
       data: {
         totalConfigs,
         activeConfigs,
         inactiveConfigs,
-        lowStockCount,
-        outOfStockCount,
       },
     });
   } catch (error: any) {

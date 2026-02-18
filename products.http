@@ -5,7 +5,7 @@ Content-Type: application/json
 ###
 
 ### Obtener productos con filtros y paginación
-GET http://localhost:3016/api/v1/products?page=1&limit=5&sortBy=price&sortOrder=asc&inStock=true
+GET http://localhost:3016/api/v1/products?page=1&limit=5&sortBy=price&sortOrder=asc
 Content-Type: application/json
 
 ###
@@ -36,8 +36,7 @@ Content-Type: application/json
   "name": "Reformer Pilates Profesional",
   "price": 2500.00,
   "description": "Reformer de Pilates profesional con resortes ajustables, perfecto para estudios y uso doméstico avanzado.",
-  "category": "685de93390621e748d11f554",
-  "stock": 5
+  "category": "685de93390621e748d11f554"
 }
 
 ### NOTA: Para crear/actualizar productos con imágenes (OBLIGATORIO), usar multipart/form-data
@@ -49,7 +48,6 @@ Content-Type: application/json
 ###   -F "price=2500.00" \
 ###   -F "description=Reformer de Pilates profesional con resortes ajustables" \
 ###   -F "category=685de93390621e748d11f554" \
-###   -F "stock=5" \
 ###   -F "images=@/ruta/a/imagen1.jpg" \
 ###   -F "images=@/ruta/a/imagen2.jpg"
 
@@ -63,8 +61,7 @@ Content-Type: application/json
   "name": "Leggings Deportivos Premium",
   "price": 85.00,
   "description": "Leggings de alta calidad con tejido transpirable y ajuste perfecto para ejercicios de Pilates y yoga.",
-  "category": "{{categoryId}}",
-  "stock": 20
+  "category": "{{categoryId}}"
 }
 
 ###
@@ -77,8 +74,7 @@ Content-Type: application/json
   "name": "Proteína Vegana en Polvo",
   "price": 45.00,
   "description": "Proteína en polvo 100% vegana, sabor vainilla, ideal para recuperación post-ejercicio.",
-  "category": "{{categoryId}}",
-  "stock": 15
+  "category": "{{categoryId}}"
 }
 
 ###
@@ -90,8 +86,7 @@ Content-Type: application/json
 {
   "name": "Reformer Pilates Profesional V2",
   "price": 2750.00,
-  "description": "Reformer de Pilates profesional mejorado con resortes ajustables y nuevas características ergonómicas.",
-  "stock": 8
+  "description": "Reformer de Pilates profesional mejorado con resortes ajustables y nuevas características ergonómicas."
 }
 
 ### NOTA: Para actualizar producto CON NUEVAS IMÁGENES
@@ -104,7 +99,6 @@ Content-Type: application/json
 ###   -F "name=Reformer Pilates Profesional V2" \
 ###   -F "price=2750.00" \
 ###   -F "description=Reformer mejorado con nuevas características" \
-###   -F "stock=8" \
 ###   -F "replaceImages=true" \
 ###   -F "images=@/ruta/a/nueva_imagen1.jpg" \
 ###   -F "images=@/ruta/a/nueva_imagen2.jpg"
@@ -114,39 +108,6 @@ Content-Type: application/json
 ###   -F "replaceImages=false" \
 ###   -F "images=@/ruta/a/imagen_adicional1.jpg" \
 ###   -F "images=@/ruta/a/imagen_adicional2.jpg"
-
-###
-
-### Actualizar solo el stock de un producto
-PUT http://localhost:3016/api/v1/products/{{productId}}/stock
-Content-Type: application/json
-
-{
-  "stock": 10,
-  "operation": "set"
-}
-
-###
-
-### Aumentar stock
-PUT http://localhost:3016/api/v1/products/{{productId}}/stock
-Content-Type: application/json
-
-{
-  "stock": 5,
-  "operation": "add"
-}
-
-###
-
-### Reducir stock
-PUT http://localhost:3016/api/v1/products/{{productId}}/stock
-Content-Type: application/json
-
-{
-  "stock": 2,
-  "operation": "subtract"
-}
 
 ###
 
@@ -203,7 +164,6 @@ Content-Type: application/json
 #   -F "price=75.50" \
 #   -F "description=Esterilla antideslizante de alta calidad" \
 #   -F "category=ID_DE_CATEGORIA" \
-#   -F "stock=15" \
 #   -F "images=@imagen1.jpg" \
 #   -F "images=@imagen2.jpg" \
 #   -F "images=@imagen3.jpg" \
@@ -227,8 +187,7 @@ Content-Type: application/json
 # Content-Type: application/json
 # {
 #   "name": "Esterilla Yoga Premium V2",
-#   "price": 85.00,
-#   "stock": 20
+#   "price": 85.00
 # }
 #
 # 7. VALIDACIONES Y LÍMITES:

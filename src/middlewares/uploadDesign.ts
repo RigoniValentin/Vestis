@@ -43,70 +43,79 @@ const fileFilter = (
   cb(null, true);
 };
 
-// Configuración de multer para un solo archivo
+// Configuración de multer para dos archivos (claro y oscuro)
 export const uploadDesignImage = multer({
   storage,
   fileFilter,
   limits: {
     fileSize: MAX_FILE_SIZE,
-    files: 1, // Solo una imagen por diseño
+    files: 2, // Hasta 2 imágenes por diseño (claro + oscuro)
   },
-}).single("designImage");
+}).fields([
+  { name: "designImage", maxCount: 1 },
+  { name: "designImageDark", maxCount: 1 },
+]);
 
-// Middleware para comprimir y guardar la imagen con sharp
+// Middleware para comprimir y guardar las imágenes con sharp
 export const compressAndSaveDesignImage = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    // Si no hay archivo, continuar sin procesar
-    if (!req.file) {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+
+    const lightFile = files?.["designImage"]?.[0];
+    const darkFile = files?.["designImageDark"]?.[0];
+
+    // Si no hay archivos, continuar sin procesar
+    if (!lightFile && !darkFile) {
       next();
       return;
     }
-
-    console.log(`🖼️  Iniciando compresión de imagen para Design...`);
 
     // Crear directorio si no existe
     const uploadDir = path.join(process.cwd(), "uploads", "designs");
     await fs.mkdir(uploadDir, { recursive: true });
 
-    // Generar nombre único para el archivo
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const fileName = `design-${uniqueSuffix}.webp`; // Guardamos en formato webp para mejor compresión
+    const processFile = async (file: Express.Multer.File, suffix: string): Promise<string> => {
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const fileName = `design-${suffix}-${uniqueSuffix}.webp`;
+      const filePath = path.join(uploadDir, fileName);
 
-    const filePath = path.join(uploadDir, fileName);
+      await sharp(file.buffer)
+        .resize(1200, 1200, {
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .webp({
+          quality: 90,
+          effort: 4,
+        })
+        .toFile(filePath);
 
-    // Comprimir la imagen con sharp
-    await sharp(req.file.buffer)
-      .resize(1200, 1200, {
-        // Tamaño optimizado para diseños
-        fit: "inside",
-        withoutEnlargement: true,
-      })
-      .webp({
-        quality: 90, // Alta calidad para diseños
-        effort: 4, // Balance entre velocidad y compresión
-      })
-      .toFile(filePath);
+      const stats = await fs.stat(filePath);
+      const originalSize = file.size;
+      const compressedSize = stats.size;
+      const reduction = ((1 - compressedSize / originalSize) * 100).toFixed(2);
 
-    // Obtener estadísticas del archivo
-    const stats = await fs.stat(filePath);
-    const originalSize = req.file.size;
-    const compressedSize = stats.size;
-    const reduction = ((1 - compressedSize / originalSize) * 100).toFixed(2);
+      console.log(`✅ Imagen ${suffix} comprimida:`);
+      console.log(`   - Original: ${(originalSize / 1024).toFixed(2)} KB`);
+      console.log(`   - Comprimida: ${(compressedSize / 1024).toFixed(2)} KB`);
+      console.log(`   - Reducción: ${reduction}%`);
 
-    console.log(`✅ Imagen comprimida exitosamente:`);
-    console.log(`   - Tamaño original: ${(originalSize / 1024).toFixed(2)} KB`);
-    console.log(
-      `   - Tamaño comprimido: ${(compressedSize / 1024).toFixed(2)} KB`
-    );
-    console.log(`   - Reducción: ${reduction}%`);
-    console.log(`   - Guardada en: ${filePath}`);
+      return `/uploads/designs/${fileName}`;
+    };
 
-    // Guardar la ruta relativa en el request para usarla en el controlador
-    req.body.imageUrl = `/uploads/designs/${fileName}`;
+    if (lightFile) {
+      console.log(`🖼️  Procesando imagen de diseño (fondo claro)...`);
+      req.body.imageUrl = await processFile(lightFile, "light");
+    }
+
+    if (darkFile) {
+      console.log(`🖼️  Procesando imagen de diseño (fondo oscuro)...`);
+      req.body.imageUrlDark = await processFile(darkFile, "dark");
+    }
 
     next();
   } catch (error: any) {
@@ -167,7 +176,7 @@ export const handleDesignUploadError = (
       case "LIMIT_UNEXPECTED_FILE":
         res.status(400).json({
           success: false,
-          message: 'Campo de archivo inesperado. Use "designImage"',
+          message: 'Campo de archivo inesperado. Use "designImage" o "designImageDark"',
         });
         return;
       default:

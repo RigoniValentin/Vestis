@@ -13,16 +13,16 @@
   "license": "ISC",
   "description": "",
   "_moduleAliases": {
-    "@server": "dist/server",
-    "@config": "dist/config",
-    "@services": "dist/services",
-    "@repositories": "dist/repositories",
-    "@routes": "dist/routes",
-    "@controllers": "dist/controllers",
-    "@models": "dist/models",
-    "@middlewares": "dist/middlewares",
-    "types": "dist/types", 
-    "app": "dist/app.js"
+    "@server": "src/server",
+    "@config": "src/config",
+    "@services": "src/services",
+    "@repositories": "src/repositories",
+    "@routes": "src/routes",
+    "@controllers": "src/controllers",
+    "@models": "src/models",
+    "@middlewares": "src/middlewares",
+    "types": "src/types",
+    "app": "src/app.ts"
   },
   "dependencies": {
     "@types/multer": "^1.4.13",

@@ -12,18 +12,16 @@ export type AccessoryType =
   | "equipamiento"
   | "otro";
 
-// Variante de color con stock
+// Variante de color
 export interface IColorVariant {
   color: string;        // Nombre del color (ej: "Negro", "Rosa")
   hexCode?: string;     // Código hex opcional (ej: "#000000")
-  stock: number;        // Stock disponible para este color
   image?: string;       // Imagen específica para este color (opcional)
 }
 
 // Variante de talle (para medias, vinchas ajustables, etc)
 export interface ISizeVariant {
   size: string;         // Talle (XS, S, M, L, XL, Único)
-  stock: number;        // Stock para este talle
 }
 
 export interface IAccessory extends Document {
@@ -38,7 +36,6 @@ export interface IAccessory extends Document {
   mainImage?: string;           // Se establece automáticamente
   colors?: IColorVariant[];     // Variantes de color (opcional)
   sizes?: ISizeVariant[];       // Variantes de talle (opcional)
-  stock: number;                // Stock general (si no hay variantes)
   tags?: string[];              // Tags para búsqueda y filtrado
   isFeatured: boolean;          // Destacar en la tienda
   isActive: boolean;            // Activo/inactivo
@@ -63,12 +60,6 @@ const ColorVariantSchema = new Schema<IColorVariant>({
     type: String,
     trim: true,
   },
-  stock: {
-    type: Number,
-    required: true,
-    min: 0,
-    default: 0,
-  },
   image: {
     type: String,
   },
@@ -79,12 +70,6 @@ const SizeVariantSchema = new Schema<ISizeVariant>({
     type: String,
     required: true,
     trim: true,
-  },
-  stock: {
-    type: Number,
-    required: true,
-    min: 0,
-    default: 0,
   },
 }, { _id: false });
 
@@ -151,11 +136,6 @@ const AccessorySchema: Schema = new Schema(
       type: [SizeVariantSchema],
       default: [],
     },
-    stock: {
-      type: Number,
-      min: [0, "El stock no puede ser negativo"],
-      default: 0,
-    },
     tags: {
       type: [String],
       default: [],
@@ -197,17 +177,6 @@ AccessorySchema.index({ price: 1 });
 AccessorySchema.index({ isActive: 1 });
 AccessorySchema.index({ isFeatured: 1 });
 AccessorySchema.index({ slug: 1 });
-
-// Virtual para calcular stock total (si hay variantes)
-AccessorySchema.virtual("totalStock").get(function (this: IAccessory) {
-  if (this.colors && this.colors.length > 0) {
-    return this.colors.reduce((acc, c) => acc + c.stock, 0);
-  }
-  if (this.sizes && this.sizes.length > 0) {
-    return this.sizes.reduce((acc, s) => acc + s.stock, 0);
-  }
-  return this.stock;
-});
 
 // Virtual para verificar si tiene descuento
 AccessorySchema.virtual("hasDiscount").get(function (this: IAccessory) {

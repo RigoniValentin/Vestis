@@ -7,17 +7,13 @@ import mongoose, { Document, Schema } from "mongoose";
  * tipo de prenda + color + diseño, con su imagen real del producto.
  * 
  * El admin sube estas configuraciones y el usuario al armar su remera
- * busca una que coincida. Si no existe → "sin stock".
+ * busca una que coincida. Si no existe → "no disponible".
  */
 export interface ITshirtConfig extends Document {
   tshirtType: mongoose.Types.ObjectId; // Ref a TShirtType
   design: mongoose.Types.ObjectId;     // Ref a Design
   color: string;                       // "blanco" | "negro"
   sizes: string[];                     // Talles disponibles para esta config
-  stock: {
-    size: string;
-    quantity: number;
-  }[];
   productImage: string;                // Imagen real del producto terminado
   price: number;                       // Precio final de esta configuración
   isActive: boolean;
@@ -46,15 +42,6 @@ const TshirtConfigSchema: Schema = new Schema(
     sizes: {
       type: [String],
       default: ["S", "M", "L", "XL"],
-    },
-    stock: {
-      type: [
-        {
-          size: { type: String, required: true },
-          quantity: { type: Number, required: true, min: 0 },
-        },
-      ],
-      default: [],
     },
     productImage: {
       type: String,
