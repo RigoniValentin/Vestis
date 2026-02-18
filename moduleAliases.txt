@@ -12,14 +12,14 @@
   },
 
   "_moduleAliases": {
-    "@server": "dist/src/server",
-    "@config": "dist/src/config",
-    "@services": "dist/src/services",
-    "@repositories": "dist/src/repositories",
-    "@routes": "dist/src/routes",
-    "@controllers": "dist/src/controllers",
-    "@models": "dist/src/models",
-    "@middlewares": "dist/src/middlewares",
-    "types": "dist/src/types", 
-    "app": "dist/src/app.js"
+    "@server": "dist/server",
+    "@config": "dist/config",
+    "@services": "dist/services",
+    "@repositories": "dist/repositories",
+    "@routes": "dist/routes",
+    "@controllers": "dist/controllers",
+    "@models": "dist/models",
+    "@middlewares": "dist/middlewares",
+    "types": "dist/types", 
+    "app": "dist/app.js"
   },
