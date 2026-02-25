@@ -1,11 +1,12 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
-export interface IDesign extends Document {
+export interface IDesign {
+  _id: mongoose.Types.ObjectId;
   name: string;
   description?: string;
   imageUrl: string; // URL del diseño para fondos claros
   imageUrlDark?: string; // URL del diseño para fondos oscuros
-  year: number; // Año del diseño para filtrado
+  designCollection: mongoose.Types.ObjectId; // Referencia a la colección (en DB es "collection")
   tags?: string[]; // Etiquetas para búsqueda
   isActive: boolean; // Si está disponible para uso
   createdAt: Date;
@@ -33,11 +34,10 @@ const DesignSchema: Schema = new Schema(
       type: String,
       default: null,
     },
-    year: {
-      type: Number,
-      required: [true, "El año del diseño es requerido"],
-      min: [2020, "Año inválido"],
-      max: [2100, "Año inválido"],
+    collection: {
+      type: Schema.Types.ObjectId,
+      ref: "Collection",
+      required: [true, "La colección es requerida"],
     },
     tags: {
       type: [String],
@@ -50,11 +50,12 @@ const DesignSchema: Schema = new Schema(
   },
   {
     timestamps: true,
+    suppressReservedKeysWarning: true,
   }
 );
 
 // Índices para optimizar búsquedas
-DesignSchema.index({ year: 1 });
+DesignSchema.index({ collection: 1 });
 DesignSchema.index({ name: 1 });
 DesignSchema.index({ isActive: 1 });
 DesignSchema.index({ tags: 1 });

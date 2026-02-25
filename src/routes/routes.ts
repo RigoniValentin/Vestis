@@ -54,6 +54,7 @@ import productRoutes from "./productRoutes";
 import eventRoutes from "./eventRoutes";
 import noticeRoutes from "./noticeRoutes";
 import designRoutes from "./designRoutes";
+import collectionRoutes from "./collectionRoutes";
 import tshirtTypeRoutes from "./tshirtTypeRoutes";
 import customOrderRoutes from "./customOrderRoutes";
 import tshirtConfigRoutes from "./tshirtConfigRoutes";
@@ -267,6 +268,9 @@ export default () => {
 
   // Rutas de productos de la tienda
   router.use("/products", productRoutes);
+
+  // Rutas de colecciones de diseños
+  router.use("/collections", collectionRoutes);
 
   // Rutas de diseños/estampas para remeras personalizadas
   router.use("/designs", designRoutes);

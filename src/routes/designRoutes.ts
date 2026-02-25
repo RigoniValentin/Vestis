@@ -3,8 +3,6 @@ import type { ErrorRequestHandler } from "express";
 import {
   getDesigns,
   getDesignById,
-  getDesignsByYear,
-  getAvailableYears,
   createDesign,
   updateDesign,
   deleteDesign,
@@ -22,8 +20,6 @@ const router = express.Router();
 
 // Rutas públicas
 router.get("/", getDesigns);
-router.get("/years/available", getAvailableYears);
-router.get("/year/:year", getDesignsByYear);
 router.get("/:id", getDesignById);
 
 // Rutas protegidas (Admin) - con manejo de imagen

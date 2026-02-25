@@ -18,7 +18,7 @@ export const getTshirtConfigs = async (req: Request, res: Response) => {
 
     const configs = await TshirtConfig.find(query)
       .populate("tshirtType", "description productType")
-      .populate("design", "name description imageUrl year tags")
+      .populate({ path: "design", select: "name description imageUrl imageUrlDark tags", populate: { path: "collection", select: "name description" } })
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -87,7 +87,7 @@ export const findMatchingConfig = async (req: Request, res: Response): Promise<v
       isActive: true,
     })
       .populate("tshirtType", "description productType")
-      .populate("design", "name description imageUrl year tags");
+      .populate({ path: "design", select: "name description imageUrl imageUrlDark tags", populate: { path: "collection", select: "name description" } });
 
     if (!config) {
       res.status(404).json({
@@ -170,7 +170,7 @@ export const createTshirtConfig = async (req: Request, res: Response): Promise<v
 
     const populatedConfig = await TshirtConfig.findById(config._id)
       .populate("tshirtType", "description productType")
-      .populate("design", "name description imageUrl year tags");
+      .populate({ path: "design", select: "name description imageUrl imageUrlDark tags", populate: { path: "collection", select: "name description" } });
 
     res.status(201).json({
       success: true,
@@ -227,7 +227,7 @@ export const updateTshirtConfig = async (req: Request, res: Response): Promise<v
       { new: true, runValidators: true }
     )
       .populate("tshirtType", "description productType")
-      .populate("design", "name description imageUrl year tags");
+      .populate({ path: "design", select: "name description imageUrl imageUrlDark tags", populate: { path: "collection", select: "name description" } });
 
     if (!config) {
       res.status(404).json({
@@ -278,7 +278,7 @@ export const toggleTshirtConfigActive = async (req: Request, res: Response): Pro
 
     const populatedConfig = await TshirtConfig.findById(config._id)
       .populate("tshirtType", "description productType")
-      .populate("design", "name description imageUrl year tags");
+      .populate({ path: "design", select: "name description imageUrl imageUrlDark tags", populate: { path: "collection", select: "name description" } });
 
     res.status(200).json({
       success: true,

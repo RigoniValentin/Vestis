@@ -117,7 +117,7 @@ export const getProducts = async (
 
     // Configurar paginación
     const pageNum = Math.max(1, parseInt(page as string));
-    const limitNum = Math.min(50, Math.max(1, parseInt(limit as string)));
+    const limitNum = Math.min(1000, Math.max(1, parseInt(limit as string)));
     const skip = (pageNum - 1) * limitNum;
 
     // Configurar ordenamiento

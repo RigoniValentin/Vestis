@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Design from "../models/Design";
+import TshirtConfig from "../models/TshirtConfig";
 import { deleteDesignImage } from "../middlewares/uploadDesign";
 
 // @desc    Obtener todos los diseños
@@ -7,12 +8,12 @@ import { deleteDesignImage } from "../middlewares/uploadDesign";
 // @access  Public
 export const getDesigns = async (req: Request, res: Response) => {
   try {
-    const { year, isActive, tags } = req.query;
+    const { collection, isActive, tags } = req.query;
     
     let query: any = {};
     
-    if (year) {
-      query.year = parseInt(year as string);
+    if (collection) {
+      query.collection = collection;
     }
     
     if (isActive !== undefined) {
@@ -24,7 +25,9 @@ export const getDesigns = async (req: Request, res: Response) => {
       query.tags = { $in: tagsArray };
     }
     
-    const designs = await Design.find(query).sort({ year: -1, createdAt: -1 });
+    const designs = await Design.find(query)
+      .populate("collection", "name description")
+      .sort({ createdAt: -1 });
     
     res.status(200).json({
       success: true,
@@ -45,7 +48,8 @@ export const getDesigns = async (req: Request, res: Response) => {
 // @access  Public
 export const getDesignById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const design = await Design.findById(req.params.id);
+    const design = await Design.findById(req.params.id)
+      .populate("collection", "name description");
     
     if (!design) {
       res.status(404).json({
@@ -68,64 +72,18 @@ export const getDesignById = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// @desc    Obtener diseños por año
-// @route   GET /api/designs/year/:year
-// @access  Public
-export const getDesignsByYear = async (req: Request, res: Response) => {
-  try {
-    const year = parseInt(req.params.year as string);
-    
-    const designs = await Design.find({ 
-      year,
-      isActive: true 
-    }).sort({ createdAt: -1 });
-    
-    res.status(200).json({
-      success: true,
-      count: designs.length,
-      data: designs,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error al obtener diseños por año",
-      error: error.message,
-    });
-  }
-};
-
-// @desc    Obtener años disponibles
-// @route   GET /api/designs/years/available
-// @access  Public
-export const getAvailableYears = async (req: Request, res: Response) => {
-  try {
-    const years = await Design.distinct("year", { isActive: true });
-    
-    res.status(200).json({
-      success: true,
-      data: years.sort((a, b) => b - a),
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: "Error al obtener años disponibles",
-      error: error.message,
-    });
-  }
-};
-
 // @desc    Crear un diseño
 // @route   POST /api/designs
 // @access  Private/Admin
 export const createDesign = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, description, imageUrl, imageUrlDark, year, tags, isActive } = req.body;
+    const { name, description, imageUrl, imageUrlDark, collection, tags, isActive } = req.body;
     
     // Validar campos requeridos
-    if (!name || !year) {
+    if (!name || !collection) {
       res.status(400).json({
         success: false,
-        message: "Nombre y año son requeridos",
+        message: "Nombre y colección son requeridos",
       });
       return;
     }
@@ -140,7 +98,7 @@ export const createDesign = async (req: Request, res: Response): Promise<void> =
     }
     
     // Procesar tags (puede venir como string separado por comas o array)
-    let tagsArray = [];
+    let tagsArray: string[] = [];
     if (tags) {
       if (typeof tags === 'string') {
         tagsArray = tags.split(',').map((t: string) => t.trim()).filter((t: string) => t);
@@ -154,10 +112,13 @@ export const createDesign = async (req: Request, res: Response): Promise<void> =
       description,
       imageUrl: imageUrl || null,
       imageUrlDark: imageUrlDark || null,
-      year: parseInt(year),
+      collection,
       tags: tagsArray,
       isActive: isActive !== undefined ? (isActive === "true" || isActive === true) : true,
     });
+
+    // Poblar la colección antes de devolver
+    await design.populate("collection", "name description");
     
     res.status(201).json({
       success: true,
@@ -209,11 +170,6 @@ export const updateDesign = async (req: Request, res: Response): Promise<void> =
     if (req.body.isActive !== undefined) {
       req.body.isActive = req.body.isActive === "true" || req.body.isActive === true;
     }
-
-    // Procesar year
-    if (req.body.year) {
-      req.body.year = parseInt(req.body.year);
-    }
     
     const updatedDesign = await Design.findByIdAndUpdate(
       req.params.id,
@@ -222,7 +178,7 @@ export const updateDesign = async (req: Request, res: Response): Promise<void> =
         new: true,
         runValidators: true,
       }
-    );
+    ).populate("collection", "name description");
     
     res.status(200).json({
       success: true,
@@ -238,7 +194,7 @@ export const updateDesign = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// @desc    Eliminar un diseño
+// @desc    Eliminar un diseño (solo si no tiene configuraciones asociadas)
 // @route   DELETE /api/designs/:id
 // @access  Private/Admin
 export const deleteDesign = async (req: Request, res: Response): Promise<void> => {
@@ -252,15 +208,31 @@ export const deleteDesign = async (req: Request, res: Response): Promise<void> =
       });
       return;
     }
-    
-    // Soft delete - solo desactivar
-    design.isActive = false;
-    await design.save();
-    
+
+    // Verificar si el diseño está asociado a alguna configuración de remera
+    const associatedConfigs = await TshirtConfig.countDocuments({ design: design._id });
+    if (associatedConfigs > 0) {
+      res.status(400).json({
+        success: false,
+        message: `No se puede eliminar: este diseño está asociado a ${associatedConfigs} configuración${associatedConfigs > 1 ? "es" : ""} de prenda`,
+      });
+      return;
+    }
+
+    // Eliminar imágenes del disco
+    if (design.imageUrl) {
+      await deleteDesignImage(design.imageUrl);
+    }
+    if (design.imageUrlDark) {
+      await deleteDesignImage(design.imageUrlDark);
+    }
+
+    // Eliminar el documento de la base de datos
+    await Design.findByIdAndDelete(req.params.id);
+
     res.status(200).json({
       success: true,
-      message: "Diseño desactivado exitosamente",
-      data: design,
+      message: "Diseño eliminado permanentemente",
     });
   } catch (error: any) {
     res.status(500).json({
