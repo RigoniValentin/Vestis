@@ -1,19 +1,33 @@
 import { Request, Response } from "express";
 import { QuestionsService } from "@services/questionsService";
 import { QuestionRepository } from "@repositories/questionsRepository";
-import { Question } from "types/QuestionsTypes";
+import { Query } from "types/RepositoryTypes";
+import { Question, QuestionResponsePayload } from "types/QuestionsTypes";
 
 const questionsService = new QuestionsService(new QuestionRepository());
+
+const isAdminUser = (req: Request) =>
+  req.currentUser.roles?.some((role) => role.name === "admin");
 
 export const createQuestion = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
-    // Usa req.currentUser para saber quién hace la pregunta
     const userId = req.currentUser._id;
+    const text = String(req.body.text || "").trim();
+    const category = String(req.body.category || req.body.topic || "").trim();
+
+    if (!text || !category) {
+      res
+        .status(400)
+        .json({ message: "La pregunta y la categoría son obligatorias." });
+      return;
+    }
+
     const questionData = {
-      ...req.body,
+      text,
+      category,
       user: userId,
     } as Question;
 
@@ -26,13 +40,43 @@ export const createQuestion = async (
   }
 };
 
-// Endpoint para que admin responda una pregunta
-// Endpoint para responder con el primer video
+export const respondToQuestion = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!isAdminUser(req)) {
+      res.status(403).json({ message: "Solo Liz puede responder preguntas." });
+      return;
+    }
+
+    const id = req.params.id as string;
+    const payload = req.body as QuestionResponsePayload;
+
+    const answered = await questionsService.respondToQuestion(id, payload);
+    if (!answered) {
+      res.status(404).json({ message: "Pregunta no encontrada." });
+      return;
+    }
+
+    res.json(answered);
+  } catch (error) {
+    res
+      .status(400)
+      .json({ message: error instanceof Error ? error.message : error });
+  }
+};
+
 export const answerQuestionVideo1 = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
+    if (!isAdminUser(req)) {
+      res.status(403).json({ message: "Solo Liz puede responder preguntas." });
+      return;
+    }
+
     const id = req.params.id as string;
     const { videoUrl } = req.body;
     if (!videoUrl || !videoUrl.trim()) {
@@ -52,12 +96,16 @@ export const answerQuestionVideo1 = async (
   }
 };
 
-// Endpoint para responder con el segundo video
 export const answerQuestionVideo2 = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
+    if (!isAdminUser(req)) {
+      res.status(403).json({ message: "Solo Liz puede responder preguntas." });
+      return;
+    }
+
     const id = req.params.id as string;
     const { videoUrl } = req.body;
     if (!videoUrl || !videoUrl.trim()) {
@@ -82,6 +130,11 @@ export const rejectQuestion = async (
   res: Response
 ): Promise<void> => {
   try {
+    if (!isAdminUser(req)) {
+      res.status(403).json({ message: "Solo Liz puede moderar preguntas." });
+      return;
+    }
+
     const id = req.params.id as string;
     const { rejectComment } = req.body;
     if (!rejectComment) {
@@ -108,9 +161,12 @@ export const findQuestions = async (
   res: Response
 ): Promise<void> => {
   try {
-    // Opcional: Si el usuario no es admin, puedes filtrar por su id, por ejemplo:
-    // const query = { ...req.query, user: req.currentUser._id };
-    const query = req.query;
+    const query: Query = { ...req.query };
+
+    if (!isAdminUser(req)) {
+      query.user = String(req.currentUser._id);
+    }
+
     const questions = await questionsService.findQuestions(query);
     res.json(questions);
   } catch (error) {
@@ -120,6 +176,3 @@ export const findQuestions = async (
     });
   }
 };
-
-// Puedes agregar endpoints GET para que los usuarios consulten
-// sus preguntas pendientes y respondidas, filtrando por req.currentUser._id y status.

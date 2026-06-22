@@ -38,7 +38,10 @@ export interface User extends Document {
     paymentDate: Date;
     expirationDate: Date;
   };
+  communityBonusGrantedAt?: Date;
   couponUsed?: boolean;
+  avatarUrl?: string;
+  bio?: string;
   resetPasswordToken?: string;
   resetPasswordExpires?: Date;
   comparePassword(password: string): Promise<boolean>;

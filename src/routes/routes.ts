@@ -32,6 +32,7 @@ import {
   createQuestion,
   findQuestions,
   rejectQuestion,
+  respondToQuestion,
 } from "@controllers/questionController";
 import {
   createVideo,
@@ -59,6 +60,11 @@ import tshirtTypeRoutes from "./tshirtTypeRoutes";
 import customOrderRoutes from "./customOrderRoutes";
 import tshirtConfigRoutes from "./tshirtConfigRoutes";
 import accessoryRoutes from "./accessoryRoutes";
+import documentaryRoutes from "./documentaryRoutes";
+import orderRoutes from "./orderRoutes";
+import paymentSettingsRoutes from "./paymentSettingsRoutes";
+import subscriptionTransferRoutes from "./subscriptionTransferRoutes";
+import communityRoutes from "./communityRoutes";
 import {
   applyCoupon,
   cancelPayment,
@@ -137,15 +143,20 @@ export default () => {
     "/questions",
     verifyToken,
     checkSubscription,
-    getPermissions,
     createQuestion
   );
   router.get(
     "/questions",
     verifyToken,
     checkSubscription,
-    getPermissions,
     findQuestions
+  );
+  router.put(
+    "/questions/:id/respond",
+    verifyToken,
+    checkSubscription,
+    getPermissions,
+    respondToQuestion
   );
   router.put(
     "/questions/:id/answer/1",
@@ -286,6 +297,21 @@ export default () => {
 
   // Rutas de accesorios
   router.use("/accessories", accessoryRoutes);
+
+  // Rutas del documental ("Humano Existes")
+  router.use("/documentaries", documentaryRoutes);
+
+  // Rutas de pedidos de la tienda (con pasarela de pagos)
+  router.use("/orders", orderRoutes);
+
+  // Configuración de pagos (datos bancarios, toggles)
+  router.use("/payment-settings", paymentSettingsRoutes);
+
+  // Solicitudes de suscripción por transferencia
+  router.use("/subscription", subscriptionTransferRoutes);
+
+  // Comunidad Premium (posts, market, notificaciones, avatares)
+  router.use("/community", communityRoutes);
   // #endregion
 
   // #region Events Routes

@@ -37,14 +37,46 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
   const jwtSecret = process.env.JWT_SECRET as string;
   try {
     const { email, password }: User = req.body;
+
+    // Validación de campos requeridos
+    if (!email || !password) {
+      res.status(400).json({
+        code: "MISSING_FIELDS",
+        field: !email ? "email" : "password",
+        message: !email
+          ? "Debe ingresar su correo electrónico."
+          : "Debe ingresar su contraseña.",
+      });
+      return;
+    }
+
+    // Validación de formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({
+        code: "INVALID_EMAIL_FORMAT",
+        field: "email",
+        message: "El formato del correo electrónico no es válido.",
+      });
+      return;
+    }
+
     const user = await userService.findUserByEmail(email);
     if (!user) {
-      res.status(404).json({ message: "Invalid user or password..." });
+      res.status(401).json({
+        code: "EMAIL_NOT_FOUND",
+        field: "email",
+        message: "No existe una cuenta registrada con este correo electrónico.",
+      });
       return;
     }
     const comparePass = await user.comparePassword(password);
     if (!comparePass) {
-      res.status(400).json({ message: "Invalid user or password..." });
+      res.status(401).json({
+        code: "INVALID_PASSWORD",
+        field: "password",
+        message: "La contraseña ingresada es incorrecta.",
+      });
       return;
     }
 
@@ -87,7 +119,10 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     res.json(token);
   } catch (error) {
     console.log("error :>> ", error);
-    res.status(500).json(error);
+    res.status(500).json({
+      code: "SERVER_ERROR",
+      message: "Ocurrió un error en el servidor. Intente nuevamente más tarde.",
+    });
   }
 };
 

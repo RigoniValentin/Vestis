@@ -380,18 +380,30 @@ export const getSubscriptionInfo = async (
       return;
     }
 
-    // Verificar si el usuario tiene una suscripción
-    if (!user.subscription) {
+    const subscription = user.subscription;
+
+    // Verificar si el usuario tiene una suscripción completa y válida
+    if (
+      !subscription ||
+      !subscription.transactionId ||
+      !subscription.paymentDate ||
+      !subscription.expirationDate
+    ) {
       res.json({
         hasSubscription: false,
         message: "El usuario no tiene una suscripción activa",
+        user: {
+          email: user.email,
+          name: user.name,
+          roles: user.roles?.map((role) => role.name) || [],
+        },
       });
       return;
     }
 
     const currentDate = new Date();
-    const expirationDate = new Date(user.subscription.expirationDate);
-    const paymentDate = new Date(user.subscription.paymentDate);
+    const expirationDate = new Date(subscription.expirationDate);
+    const paymentDate = new Date(subscription.paymentDate);
 
     // Calcular días restantes
     const timeDifference = expirationDate.getTime() - currentDate.getTime();
@@ -408,10 +420,12 @@ export const getSubscriptionInfo = async (
     );
 
     // Determinar el método de pago usado
-    const paymentMethod = user.subscription.transactionId.startsWith("PAY-")
+    const paymentMethod = subscription.transactionId.startsWith("PAY-")
       ? "PayPal"
-      : user.subscription.transactionId === "INVITECOUPON2025"
+      : subscription.transactionId === "INVITECOUPON2025"
       ? "Cupón de Invitación"
+      : subscription.transactionId.startsWith("ORDER_BONUS_")
+      ? "Compra en tienda"
       : "MercadoPago";
 
     const subscriptionInfo: SubscriptionInfo = {
@@ -420,9 +434,9 @@ export const getSubscriptionInfo = async (
       isExpired,
       isExpiringSoon,
       subscription: {
-        transactionId: user.subscription.transactionId,
-        paymentDate: user.subscription.paymentDate,
-        expirationDate: user.subscription.expirationDate,
+        transactionId: subscription.transactionId,
+        paymentDate: subscription.paymentDate,
+        expirationDate: subscription.expirationDate,
         daysRemaining: Math.max(0, daysRemaining),
         daysSincePayment,
         paymentMethod,

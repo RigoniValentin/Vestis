@@ -21,7 +21,7 @@
     "@controllers": "dist/controllers",
     "@models": "dist/models",
     "@middlewares": "dist/middlewares",
-    "types": "dist/types",
+    "types": "dist/types", 
     "app": "dist/app.js"
   },
   "dependencies": {

@@ -5,6 +5,7 @@ import morgan from "morgan";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { ChatMessage } from "@models/ChatMessage"; // Importar el modelo de mensajes
+import { initCommunityRealtime } from "@services/communityRealtimeService";
 
 const app: Application = express();
 const projectRoot = process.cwd();
@@ -51,6 +52,8 @@ const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
+
+initCommunityRealtime(io);
 
 // Ejemplo de configuración de eventos
 io.on("connection", (socket) => {

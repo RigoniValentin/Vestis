@@ -10,6 +10,7 @@ export class QuestionRepository implements IQuestionRepository {
 
   async find(query?: Query): Promise<Question[]> {
     return await QuestionModel.find(query || {})
+      .sort({ createdAt: -1 })
       .populate("user")
       .exec();
   }

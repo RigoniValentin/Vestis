@@ -45,7 +45,7 @@ const multerUpload = multer({
  * Comprime una imagen usando sharp y la guarda en disco como WebP.
  * Retorna la ruta relativa del archivo guardado.
  */
-async function compressAndSave(
+export async function compressAndSave(
   buffer: Buffer,
   originalName: string,
   subfolder: string = "tshirt-types"

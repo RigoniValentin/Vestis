@@ -38,7 +38,10 @@ const UserSchema: Schema = new Schema<User>(
       paymentDate: { type: Date },
       expirationDate: { type: Date },
     },
+    communityBonusGrantedAt: { type: Date },
     couponUsed: { type: Boolean, default: false },
+    avatarUrl: { type: String },
+    bio: { type: String, maxlength: 280 },
     nationality: {
       type: String,
     },

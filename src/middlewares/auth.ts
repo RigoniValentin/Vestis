@@ -41,6 +41,32 @@ export const verifyToken = async (
   }
 };
 
+export const optionalVerifyToken = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+) => {
+  const jwtSecret = process.env.JWT_SECRET as string;
+  const token =
+    req.headers.authorization?.replace("Bearer ", "") ||
+    (req.query.authToken as string);
+
+  if (!token || !jwtSecret) {
+    next();
+    return;
+  }
+
+  try {
+    const verify = jwt.verify(token, jwtSecret) as User;
+    const getUser = await userService.findUserById(verify.id);
+    if (getUser) req.currentUser = getUser;
+  } catch (error: any) {
+    console.log("optional token ignored :>> ", error.message);
+  }
+
+  next();
+};
+
 export const getPermissions = async (
   req: Request,
   res: Response,

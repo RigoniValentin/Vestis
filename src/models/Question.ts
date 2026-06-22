@@ -11,9 +11,17 @@ const QuestionSchema: Schema = new Schema<Question>(
       default: "pending",
     },
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    // Se reemplaza answerUrl por answerUrls que es un arreglo de strings.
+    responseType: {
+      type: String,
+      enum: ["text", "youtube"],
+      default: undefined,
+    },
+    responseText: { type: String, default: undefined },
+    responseVideoUrl: { type: String, default: undefined },
+    respondedAt: { type: Date, default: undefined },
     answerUrls: { type: [String], default: [] },
     rejectComment: { type: String, default: undefined },
+    rejectedAt: { type: Date, default: undefined },
   },
   { timestamps: true, versionKey: false }
 );

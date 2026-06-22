@@ -1,6 +1,7 @@
 import { Query } from "types/RepositoryTypes";
 import {
   IQuestionRepository,
+  QuestionResponsePayload,
   IQuestionService,
   Question,
 } from "types/QuestionsTypes";
@@ -27,6 +28,12 @@ export class QuestionsService implements IQuestionService {
     }
 
     question.status = "pending";
+    question.responseType = undefined;
+    question.responseText = undefined;
+    question.responseVideoUrl = undefined;
+    question.respondedAt = undefined;
+    question.rejectComment = undefined;
+    question.rejectedAt = undefined;
     return this.questionRepository.create(question);
   }
 
@@ -49,45 +56,95 @@ export class QuestionsService implements IQuestionService {
     return this.questionRepository.delete(id);
   }
 
-  // Se actualiza el método answerQuestion para requerir dos URLs y responder solo si se proporcionan ambas
-  // Agrega este método para actualizar la respuesta 1:
+  async respondToQuestion(
+    id: string,
+    response: QuestionResponsePayload
+  ): Promise<Question | null> {
+    const question = await this.questionRepository.findById(id);
+    if (!question) {
+      throw new Error("Pregunta no encontrada.");
+    }
+
+    if (!["text", "youtube"].includes(response.responseType)) {
+      throw new Error("El tipo de respuesta debe ser 'text' o 'youtube'.");
+    }
+
+    const responseText = response.responseText?.trim();
+    const responseVideoUrl = response.responseVideoUrl?.trim();
+
+    if (response.responseType === "text" && !responseText) {
+      throw new Error("La respuesta escrita es obligatoria.");
+    }
+
+    if (response.responseType === "youtube" && !responseVideoUrl) {
+      throw new Error("El link del video de YouTube es obligatorio.");
+    }
+
+    return this.questionRepository.update(id, {
+      status: "answered",
+      responseType: response.responseType,
+      responseText: response.responseType === "text" ? responseText : undefined,
+      responseVideoUrl:
+        response.responseType === "youtube" ? responseVideoUrl : undefined,
+      respondedAt: new Date(),
+      rejectComment: undefined,
+      rejectedAt: undefined,
+    });
+  }
+
   async answerQuestionVideo1(
     id: string,
     videoUrl: string
   ): Promise<Question | null> {
-    if (!videoUrl || !videoUrl.trim()) {
+    const trimmedVideoUrl = videoUrl?.trim();
+    if (!trimmedVideoUrl) {
       throw new Error("Debe proporcionar una URL de video válida.");
     }
-    // Obtiene la pregunta para conservar la respuesta 2 si existe
+
     const question = await this.questionRepository.findById(id);
     if (!question) {
       throw new Error("Pregunta no encontrada.");
     }
+
     const newAnswerUrls = question.answerUrls || [];
-    newAnswerUrls[0] = videoUrl.trim();
+    newAnswerUrls[0] = trimmedVideoUrl;
     return this.questionRepository.update(id, {
       answerUrls: newAnswerUrls,
       status: "answered",
+      responseType: "youtube",
+      responseText: undefined,
+      responseVideoUrl: trimmedVideoUrl,
+      respondedAt: new Date(),
+      rejectComment: undefined,
+      rejectedAt: undefined,
     });
   }
 
-  // Agrega este método para actualizar la respuesta 2:
   async answerQuestionVideo2(
     id: string,
     videoUrl: string
   ): Promise<Question | null> {
-    if (!videoUrl || !videoUrl.trim()) {
+    const trimmedVideoUrl = videoUrl?.trim();
+    if (!trimmedVideoUrl) {
       throw new Error("Debe proporcionar una URL de video válida.");
     }
+
     const question = await this.questionRepository.findById(id);
     if (!question) {
       throw new Error("Pregunta no encontrada.");
     }
+
     const newAnswerUrls = question.answerUrls || [];
-    newAnswerUrls[1] = videoUrl.trim();
-    // No es necesario cambiar el estado, ya que si existe la respuesta 1 se consideró respondida
+    newAnswerUrls[1] = trimmedVideoUrl;
     return this.questionRepository.update(id, {
       answerUrls: newAnswerUrls,
+      status: "answered",
+      responseType: "youtube",
+      responseText: undefined,
+      responseVideoUrl: newAnswerUrls[0] || trimmedVideoUrl,
+      respondedAt: question.respondedAt || new Date(),
+      rejectComment: undefined,
+      rejectedAt: undefined,
     });
   }
 
@@ -95,9 +152,19 @@ export class QuestionsService implements IQuestionService {
     id: string,
     rejectComment: string
   ): Promise<Question | null> {
+    const trimmedRejectComment = rejectComment?.trim();
+    if (!trimmedRejectComment) {
+      throw new Error("El comentario de rechazo es obligatorio.");
+    }
+
     return this.questionRepository.update(id, {
-      rejectComment,
+      rejectComment: trimmedRejectComment,
       status: "rejected",
+      responseType: undefined,
+      responseText: undefined,
+      responseVideoUrl: undefined,
+      respondedAt: undefined,
+      rejectedAt: new Date(),
     });
   }
 }
