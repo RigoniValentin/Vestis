@@ -4,7 +4,7 @@ import path from "path";
 import { DocumentaryModel } from "@models/Documentary";
 import { DocumentaryPurchaseModel } from "@models/DocumentaryPurchase";
 import { buildReceiptUrl } from "@middlewares/uploadReceipt";
-import { DEFAULT_SLUG, userOwnsDocumentary } from "./documentaryController";
+import { DEFAULT_SLUG, normalizeSlug, userOwnsDocumentary } from "./documentaryController";
 
 /**
  * POST /documentaries/:slug/payment/transfer
@@ -17,7 +17,7 @@ export const uploadDocumentaryReceipt = async (
 ): Promise<void> => {
   try {
     const userId = (req as any).currentUser?.id;
-    const slug = (req.params.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
     const file = req.file;
     const { referenceNumber } = req.body || {};
 

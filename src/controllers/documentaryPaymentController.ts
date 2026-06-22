@@ -4,7 +4,7 @@ import { Preference, Payment, MercadoPagoConfig } from "mercadopago";
 import { HOST, PAYPAL_API, PAYPAL_API_CLIENT, PAYPAL_API_SECRET } from "app";
 import { DocumentaryModel } from "@models/Documentary";
 import { DocumentaryPurchaseModel } from "@models/DocumentaryPurchase";
-import { DEFAULT_SLUG, userOwnsDocumentary } from "./documentaryController";
+import { DEFAULT_SLUG, normalizeSlug, userOwnsDocumentary } from "./documentaryController";
 
 const MP_ACCESS_TOKEN_ENV =
   process.env.NODE_ENV === "production"
@@ -24,7 +24,7 @@ export const createDocumentaryMpPreference = async (
   res: Response
 ): Promise<void> => {
   try {
-    const slug = (req.params.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
     const userId = (req as any).currentUser.id;
 
     const doc = await DocumentaryModel.findOne({ slug });
@@ -105,7 +105,7 @@ export const captureDocumentaryMpPreference = async (
 ): Promise<void> => {
   try {
     const { state, payment_id, status, slug: slugParam } = req.query;
-    const slug = ((slugParam as string) || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(slugParam, DEFAULT_SLUG);
 
     if (status !== "approved") {
       res.status(400).json({ success: false, message: "Pago no aprobado" });
@@ -199,7 +199,7 @@ export const createDocumentaryPaypalOrder = async (
   res: Response
 ): Promise<void> => {
   try {
-    const slug = (req.params.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
     const userId = (req as any).currentUser.id;
 
     const doc = await DocumentaryModel.findOne({ slug });
@@ -289,7 +289,7 @@ export const captureDocumentaryPaypalOrder = async (
 ): Promise<void> => {
   try {
     const { token, state, slug: slugParam } = req.query;
-    const slug = ((slugParam as string) || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(slugParam, DEFAULT_SLUG);
     const userId = state as string;
 
     if (!token || !userId) {

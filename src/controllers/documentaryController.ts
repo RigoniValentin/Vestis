@@ -7,12 +7,19 @@ import {
 } from "@models/DocumentaryPurchase";
 import { compressAndSave } from "@middlewares/uploadWithCompression";
 
-const DEFAULT_SLUG = "humano-existes";
+export const DEFAULT_SLUG = "humano-existes";
+
+export const normalizeSlug = (value: unknown, fallback: string): string => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string") return fallback;
+  const slug = raw.trim().toLowerCase();
+  return slug || fallback;
+};
 
 /**
  * Determina si el usuario actual es admin/superadmin
  */
-const isAdminUser = (req: Request): boolean => {
+export const isAdminUser = (req: Request): boolean => {
   const user: any = req.currentUser;
   if (!user || !user.roles) return false;
   return user.roles.some((r: any) =>
@@ -23,7 +30,7 @@ const isAdminUser = (req: Request): boolean => {
 /**
  * Verifica que el usuario actual ha pagado el documental.
  */
-const userOwnsDocumentary = async (
+export const userOwnsDocumentary = async (
   userId: string,
   slug: string
 ): Promise<boolean> => {
@@ -53,7 +60,7 @@ export const getDocumentaryPublic = async (
   res: Response
 ): Promise<void> => {
   try {
-    const slug = (req.params.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
     const doc = await DocumentaryModel.findOne({ slug });
     if (!doc) {
       res.status(404).json({ success: false, message: "Documental no encontrado" });
@@ -76,7 +83,7 @@ export const getDocumentaryPlayback = async (
   res: Response
 ): Promise<void> => {
   try {
-    const slug = (req.params.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
     const doc = await DocumentaryModel.findOne({ slug });
     if (!doc) {
       res.status(404).json({ success: false, message: "Documental no encontrado" });
@@ -124,7 +131,7 @@ export const getOwnership = async (
   res: Response
 ): Promise<void> => {
   try {
-    const slug = (req.params.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
     const doc = await DocumentaryModel.findOne({ slug }).lean();
     if (!doc) {
       res.status(404).json({ success: false, message: "Documental no encontrado" });
@@ -149,7 +156,7 @@ export const upsertDocumentary = async (
   res: Response
 ): Promise<void> => {
   try {
-    const slug = (req.params.slug || req.body.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug ?? req.body.slug, DEFAULT_SLUG);
     const allowedFields = [
       "title",
       "subtitle",
@@ -231,7 +238,7 @@ export const listPurchases = async (
   res: Response
 ): Promise<void> => {
   try {
-    const slug = (req.params.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
     const purchases = await DocumentaryPurchaseModel.find({
       documentarySlug: slug,
     })
@@ -254,7 +261,7 @@ export const grantAccess = async (
   res: Response
 ): Promise<void> => {
   try {
-    const slug = (req.params.slug || DEFAULT_SLUG).toLowerCase();
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
     const { userId } = req.body;
     if (!userId) {
       res.status(400).json({ success: false, message: "userId requerido" });
@@ -323,8 +330,6 @@ export const extractYoutubeId = (input: string): string => {
   return trimmed;
 };
 
-export { DEFAULT_SLUG, userOwnsDocumentary, isAdminUser };
-
 // ─── Multer para subida de imágenes del documental ─────────────────────────
 
 const multerMemory = multer({
@@ -354,7 +359,7 @@ export const uploadDocumentaryImages = [
   ]),
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const slug = (req.params.slug || "humano-existes").toLowerCase();
+      const slug = normalizeSlug(req.params.slug, "humano-existes");
       const files = req.files as Record<string, Express.Multer.File[]>;
 
       const update: {
