@@ -7,6 +7,7 @@ import { RolesRepository } from "@repositories/rolesRepository";
 import { RolesService } from "@services/rolesService";
 import { Preference, MercadoPagoConfig } from "mercadopago";
 import {
+  getPaymentSettings,
   getSubscriptionDurationDays,
   getSubscriptionPriceUsdForPayPal,
 } from "@models/PaymentSettings";
@@ -53,15 +54,23 @@ export const createOrder = async (
     return;
   }
 
+  const settings = await getPaymentSettings();
+  if (settings.subscription?.enabled === false) {
+    res.status(400).json({ message: "El abono está temporalmente deshabilitado" });
+    return;
+  }
+
+  // Mismo criterio que el flujo PayPal del documental: HOST en prod, localhost en dev.
   const baseUrl =
     process.env.NODE_ENV === "production"
-      ? "https://pilatestransmissionsarah.com"
-      : "https://pilatestransmissionsarah.com";
+      ? HOST
+      : `http://localhost:${process.env.PORT || 3016}`;
 
   const order = {
     intent: "CAPTURE",
     purchase_units: [
       {
+        description: "Suscripción mensual - Vestis Evolución",
         amount: {
           currency_code: "USD",
           value: (await getSubscriptionPriceUsdForPayPal()).toFixed(2),
@@ -69,11 +78,11 @@ export const createOrder = async (
       },
     ],
     application_context: {
-      brand_name: "Pilates Transmission Sarah",
+      brand_name: "Vestis Evolución",
       landing_page: "NO_PREFERENCE",
       user_action: "PAY_NOW",
-      return_url: `${baseUrl}/api/v1/capture-order?state=${userId}`, // Ruta del backend para capturar la orden
-      cancel_url: `${baseUrl}/cancel-payment`, // Ruta del backend para manejar cancelaciones
+      return_url: `${baseUrl}/api/v1/capture-order?state=${userId}`, // PayPal redirige acá tras aprobar el pago
+      cancel_url: `${baseUrl}/api/v1/cancel-order`, // PayPal redirige acá si el usuario cancela
     },
   };
 
@@ -186,7 +195,7 @@ export const captureOrder = async (
 };
 
 export const cancelPayment = (req: Request, res: Response) => {
-  res.redirect("/");
+  res.redirect("/suscripciones");
 };
 //#endregion
 
