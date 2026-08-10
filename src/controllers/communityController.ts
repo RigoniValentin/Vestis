@@ -12,6 +12,7 @@ import {
 import { MarketEntryModel } from "@models/MarketEntry";
 import { CommunityNotificationModel } from "@models/CommunityNotification";
 import { QuestionModel } from "@models/Question";
+import { LensContentModel } from "@models/LensContent";
 import { UserModel } from "@models/Users";
 import {
   buildAvatarUrl,
@@ -821,13 +822,14 @@ export const adminCommunitySummary = async (
       res.status(403).json({ message: "Solo admin" });
       return;
     }
-    const [postsTotal, postsHidden, questionsOpen, marketActive, notificationsTotal] =
+    const [postsTotal, postsHidden, questionsOpen, marketActive, notificationsTotal, lensContentTotal] =
       await Promise.all([
         CommunityPostModel.countDocuments({}),
         CommunityPostModel.countDocuments({ isHidden: true }),
         QuestionModel.countDocuments({ status: "pending" }),
         MarketEntryModel.countDocuments({ isActive: true }),
         CommunityNotificationModel.countDocuments({}),
+        LensContentModel.countDocuments({}),
       ]);
     res.json({
       success: true,
@@ -837,6 +839,7 @@ export const adminCommunitySummary = async (
         questionsOpen,
         marketActive,
         notificationsTotal,
+        lensContentTotal,
       },
     });
   } catch (error) {

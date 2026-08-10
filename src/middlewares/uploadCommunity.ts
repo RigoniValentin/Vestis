@@ -72,9 +72,17 @@ export const uploadMarketImage = multer({
   limits: { fileSize: MAX_FILE_SIZE, files: 1 },
 }).single("image");
 
+export const uploadLensContentImage = multer({
+  storage: buildStorage("lens-content", "lens"),
+  fileFilter,
+  limits: { fileSize: MAX_FILE_SIZE, files: 1 },
+}).single("image");
+
 export const buildAvatarUrl = (filename: string) =>
   `/uploads/avatars/${filename}`;
 export const buildCommunityImageUrl = (filename: string) =>
   `/uploads/community/${filename}`;
 export const buildMarketImageUrl = (filename: string) =>
   `/uploads/market/${filename}`;
+export const buildLensContentImageUrl = (filename: string) =>
+  `/uploads/lens-content/${filename}`;

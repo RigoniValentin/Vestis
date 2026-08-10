@@ -183,3 +183,23 @@ export const emitAdminSummaryStale = () => {
 export const emitCommunityWebhookEvent = (event: string, payload: unknown) => {
   emitToAll(event, payload);
 };
+
+export const emitLensContentCreated = (item: any) => {
+  const payload = { item };
+  const rooms = [COMMUNITY_ROOM];
+  if (item?.topic) rooms.push(topicRoom(String(item.topic)));
+  emitToRooms(rooms, "community:lens-content:created", payload);
+  emitAdminSummaryStale();
+};
+
+export const emitLensContentUpdated = (item: any, action = "update") => {
+  const payload = { item, action };
+  const rooms = [COMMUNITY_ROOM];
+  if (item?.topic) rooms.push(topicRoom(String(item.topic)));
+  emitToRooms(rooms, "community:lens-content:updated", payload);
+};
+
+export const emitLensContentDeleted = (itemId: string) => {
+  emitToRooms([COMMUNITY_ROOM], "community:lens-content:deleted", { itemId });
+  emitAdminSummaryStale();
+};

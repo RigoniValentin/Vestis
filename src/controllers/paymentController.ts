@@ -7,6 +7,10 @@ import { RolesRepository } from "@repositories/rolesRepository";
 import { RolesService } from "@services/rolesService";
 import { Preference, MercadoPagoConfig } from "mercadopago";
 import {
+  getSubscriptionDurationDays,
+  getSubscriptionPriceUsdForPayPal,
+} from "@models/PaymentSettings";
+import {
   SubscriptionInfo,
   UpdateSubscriptionExpirationRequest,
   UpdateSubscriptionExpirationResponse,
@@ -60,7 +64,7 @@ export const createOrder = async (
       {
         amount: {
           currency_code: "USD",
-          value: "13.00",
+          value: (await getSubscriptionPriceUsdForPayPal()).toFixed(2),
         },
       },
     ],
@@ -162,8 +166,9 @@ export const captureOrder = async (
       res.status(500).json({ message: "Invalid payment date from PayPal" });
       return;
     }
+    const durationDays = await getSubscriptionDurationDays();
     const expirationDate = new Date(paymentDate);
-    expirationDate.setDate(expirationDate.getDate() + 30);
+    expirationDate.setDate(expirationDate.getDate() + durationDays);
 
     user.roles = [paidUserRole[0]]; // Agregar el rol "paid_user"
     user.subscription = {
@@ -278,13 +283,16 @@ export const capturePreference = async (
     }
 
     const paymentDate = new Date();
+    const durationDays = await getSubscriptionDurationDays();
     const expirationDate = new Date(paymentDate);
-    expirationDate.setDate(expirationDate.getDate() + 30);
+    expirationDate.setDate(expirationDate.getDate() + durationDays);
     console.log(
       "capturePreference: Calculated paymentDate =",
       paymentDate,
       "and expirationDate =",
-      expirationDate
+      expirationDate,
+      "durationDays =",
+      durationDays
     );
 
     user.roles = [paidUserRole[0]];

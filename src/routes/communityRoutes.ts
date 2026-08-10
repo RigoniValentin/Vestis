@@ -3,6 +3,7 @@ import { optionalVerifyToken, verifyToken } from "@middlewares/auth";
 import {
   uploadAvatar,
   uploadCommunityImage,
+  uploadLensContentImage,
   uploadMarketImage,
 } from "@middlewares/uploadCommunity";
 import {
@@ -27,6 +28,15 @@ import {
   updateMarketEntry,
   uploadOwnAvatar,
 } from "@controllers/communityController";
+import {
+  adminListLensContent,
+  createLensContent,
+  deleteLensContent,
+  listLensContent,
+  toggleLensContentActive,
+  toggleLensContentPin,
+  updateLensContent,
+} from "@controllers/lensContentController";
 
 const router = Router();
 
@@ -56,6 +66,25 @@ router.post("/notifications/read", verifyToken, markNotificationsRead);
 router.get("/profile", verifyToken, getMyCommunityProfile);
 router.post("/profile/avatar", verifyToken, uploadAvatar, uploadOwnAvatar);
 router.delete("/profile/avatar", verifyToken, removeOwnAvatar);
+
+/* Lens content (Liz publishes standalone content for each lens) */
+router.get("/lens-content", optionalVerifyToken, listLensContent);
+router.get("/lens-content/admin", verifyToken, adminListLensContent);
+router.post(
+  "/lens-content",
+  verifyToken,
+  uploadLensContentImage,
+  createLensContent
+);
+router.put(
+  "/lens-content/:id",
+  verifyToken,
+  uploadLensContentImage,
+  updateLensContent
+);
+router.delete("/lens-content/:id", verifyToken, deleteLensContent);
+router.post("/lens-content/:id/pin", verifyToken, toggleLensContentPin);
+router.post("/lens-content/:id/active", verifyToken, toggleLensContentActive);
 
 /* Admin summary */
 router.get("/admin/summary", verifyToken, adminCommunitySummary);

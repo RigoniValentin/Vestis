@@ -6,6 +6,10 @@ import { UserModel } from "@models/Users";
 import { RolesRepository } from "@repositories/rolesRepository";
 import { RolesService } from "@services/rolesService";
 import { buildReceiptUrl } from "@middlewares/uploadReceipt";
+import {
+  getSubscriptionDurationDays,
+  getSubscriptionPriceArs,
+} from "@models/PaymentSettings";
 
 const rolesService = new RolesService(new RolesRepository());
 
@@ -35,6 +39,14 @@ export const uploadSubscriptionReceipt = async (
       return;
     }
 
+    // Precio configurable desde PaymentSettings (lo edita el admin).
+    const defaultArs = await getSubscriptionPriceArs();
+    const submittedAmount = Number(amount);
+    const finalAmount =
+      Number.isFinite(submittedAmount) && submittedAmount > 0
+        ? submittedAmount
+        : defaultArs;
+
     // Si ya tenía una solicitud awaiting_review/rejected, reemplazar comprobante
     const existing = await SubscriptionTransferModel.findOne({
       userId,
@@ -49,7 +61,7 @@ export const uploadSubscriptionReceipt = async (
       }
       existing.referenceNumber = String(referenceNumber).trim();
       existing.receiptUrl = buildReceiptUrl(file.filename);
-      existing.amount = Number(amount) || existing.amount || 9900;
+      existing.amount = finalAmount;
       existing.status = "awaiting_review";
       existing.adminNotes = undefined;
       await existing.save();
@@ -59,7 +71,7 @@ export const uploadSubscriptionReceipt = async (
 
     const transfer = await SubscriptionTransferModel.create({
       userId,
-      amount: Number(amount) || 9900,
+      amount: finalAmount,
       currency: "ARS",
       referenceNumber: String(referenceNumber).trim(),
       receiptUrl: buildReceiptUrl(file.filename),
@@ -113,7 +125,8 @@ export const listSubscriptionTransfers = async (
 
 /**
  * PATCH /subscription/transfer/:id/approve (admin)
- * Aprueba la transferencia y crea/extiende la suscripción del usuario por 30 días.
+ * Aprueba la transferencia y crea/extiende la suscripción del usuario
+ * por la duración configurada en PaymentSettings.subscription.durationDays.
  */
 export const approveSubscriptionTransfer = async (
   req: Request,
@@ -136,8 +149,9 @@ export const approveSubscriptionTransfer = async (
       user.roles = [paidRole[0]];
     }
     const paymentDate = new Date();
+    const durationDays = await getSubscriptionDurationDays();
     const expirationDate = new Date(paymentDate);
-    expirationDate.setDate(expirationDate.getDate() + 30);
+    expirationDate.setDate(expirationDate.getDate() + durationDays);
     user.subscription = {
       transactionId: `TRANSFER_${tr._id}`,
       paymentDate,
