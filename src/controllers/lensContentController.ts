@@ -266,12 +266,13 @@ export const toggleLensContentPin = async (
       res.status(403).json({ message: "Solo admin" });
       return;
     }
-    const existing = await lensContentService.findById(req.params.id);
+    const id = req.params.id as string;
+    const existing = await lensContentService.findById(id);
     if (!existing) {
       res.status(404).json({ message: "Contenido no encontrado" });
       return;
     }
-    const updated = await lensContentService.updateContent(req.params.id, {
+    const updated = await lensContentService.updateContent(id, {
       isPinned: !existing.isPinned,
     });
     const populated = await populateAuthor(updated);
@@ -291,12 +292,13 @@ export const toggleLensContentActive = async (
       res.status(403).json({ message: "Solo admin" });
       return;
     }
-    const existing = await lensContentService.findById(req.params.id);
+    const id = req.params.id as string;
+    const existing = await lensContentService.findById(id);
     if (!existing) {
       res.status(404).json({ message: "Contenido no encontrado" });
       return;
     }
-    const updated = await lensContentService.updateContent(req.params.id, {
+    const updated = await lensContentService.updateContent(id, {
       isActive: !existing.isActive,
     });
     const populated = await populateAuthor(updated);
