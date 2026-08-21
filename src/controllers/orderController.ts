@@ -12,6 +12,7 @@ import { getPaymentSettings } from "@models/PaymentSettings";
 import { RolesRepository } from "@repositories/rolesRepository";
 import { RolesService } from "@services/rolesService";
 import { buildReceiptUrl } from "@middlewares/uploadReceipt";
+import { applyOrderCapture as applyOrderCaptureShared } from "@services/paypalCaptureService";
 import fs from "fs/promises";
 import path from "path";
 
@@ -523,10 +524,6 @@ export const captureOrderPaypalOrder = async (
       return;
     }
     if (order.paymentStatus === "approved") {
-      if (!order.communityBonusGrantedAt) {
-        await grantCommunityBonus(order);
-        await order.save();
-      }
       res.redirect(`${HOST}/pagoAprobado?type=order&orderId=${order._id}`);
       return;
     }
@@ -544,13 +541,12 @@ export const captureOrderPaypalOrder = async (
       return;
     }
 
-    order.gatewayPaymentId = response.data?.id;
-    order.gatewayPayerEmail = response.data?.payer?.email_address;
-    order.paymentStatus = "approved";
-    order.fulfillmentStatus = "preparing";
-    order.paidAt = new Date();
-    await grantCommunityBonus(order);
-    await order.save();
+    await applyOrderCaptureShared({
+      orderId: String(order._id),
+      transactionId: response.data?.id,
+      payerEmail: response.data?.payer?.email_address,
+      grantCommunityBonusFn: grantCommunityBonus,
+    });
 
     res.redirect(`${HOST}/pagoAprobado?type=order&orderId=${order._id}`);
   } catch (error: any) {

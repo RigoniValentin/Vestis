@@ -11,7 +11,16 @@ const app: Application = express();
 const projectRoot = process.cwd();
 
 app.use(cookieParser());
-app.use(express.json({ limit: '50mb' }));
+app.use(
+  express.json({
+    limit: "50mb",
+    verify: (req, _res, buf) => {
+      // Necesario para que el webhook de PayPal pueda verificar la firma
+      // contra el body crudo.
+      (req as any).rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(morgan("dev"));
 app.use(cors());

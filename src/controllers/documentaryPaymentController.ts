@@ -4,6 +4,7 @@ import { Preference, Payment, MercadoPagoConfig } from "mercadopago";
 import { HOST, PAYPAL_API, PAYPAL_API_CLIENT, PAYPAL_API_SECRET } from "app";
 import { DocumentaryModel } from "@models/Documentary";
 import { DocumentaryPurchaseModel } from "@models/DocumentaryPurchase";
+import { applyDocumentaryCapture as applyDocumentaryCaptureShared } from "@services/paypalCaptureService";
 import { DEFAULT_SLUG, normalizeSlug, userOwnsDocumentary } from "./documentaryController";
 
 const MP_ACCESS_TOKEN_ENV =
@@ -314,38 +315,11 @@ export const captureDocumentaryPaypalOrder = async (
       return;
     }
 
-    const transactionId = response.data?.id;
-    const doc = await DocumentaryModel.findOne({ slug }).lean();
-
-    await DocumentaryPurchaseModel.findOneAndUpdate(
-      { userId, documentarySlug: slug, status: "pending" },
-      {
-        $set: {
-          status: "approved",
-          transactionId,
-          paidAt: new Date(),
-        },
-      },
-      { upsert: true, setDefaultsOnInsert: true }
-    );
-
-    const approved = await DocumentaryPurchaseModel.findOne({
+    await applyDocumentaryCaptureShared({
       userId,
-      documentarySlug: slug,
-      status: "approved",
+      slug,
+      transactionId: response.data?.id,
     });
-    if (!approved && doc) {
-      await DocumentaryPurchaseModel.create({
-        userId,
-        documentarySlug: slug,
-        method: "paypal",
-        amount: doc.priceUsd,
-        currency: "USD",
-        status: "approved",
-        transactionId,
-        paidAt: new Date(),
-      });
-    }
 
     res.redirect(`${HOST}/pagoAprobado?type=documentary&slug=${slug}`);
   } catch (error: any) {

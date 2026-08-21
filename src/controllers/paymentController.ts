@@ -12,6 +12,14 @@ import {
   getSubscriptionPriceUsdForPayPal,
 } from "@models/PaymentSettings";
 import {
+  applySubscriptionCapture as applySubscriptionCaptureShared,
+  applyOrderCapture as applyOrderCaptureShared,
+  applyDocumentaryCapture as applyDocumentaryCaptureShared,
+  FetchedPaypalOrder,
+  assertPaypalSubscriptionCompleted,
+  fetchPayPalOrder,
+} from "@services/paypalCaptureService";
+import {
   SubscriptionInfo,
   UpdateSubscriptionExpirationRequest,
   UpdateSubscriptionExpirationResponse,
@@ -115,77 +123,94 @@ export const captureOrder = async (
   const { token, state } = req.query;
 
   try {
-    const response = await axios.post(
-      `${PAYPAL_API}/v2/checkout/orders/${token}/capture`,
-      {},
-      {
-        auth: {
-          username: PAYPAL_API_CLIENT!,
-          password: PAYPAL_API_SECRET!,
-        },
-      }
-    );
-
-    console.log(response.data);
-
-    // Verificar que la respuesta contiene la información esperada
-    if (
-      !response.data ||
-      !response.data.payer ||
-      !response.data.payer.email_address
-    ) {
-      res.status(400).json({ message: "Invalid response from PayPal" });
+    const userId = state as string;
+    if (!userId || !token) {
+      res
+        .status(400)
+        .json({ message: "Faltan parámetros token/state de PayPal" });
       return;
     }
 
-    // Obtener el ID del usuario desde el token de sesión
-    const userId = state as string;
+    // Para poder capturar la orden primero tenemos que pedirla a PayPal.
+    // El capture API no es idempotente si ya está capturado, así que primero
+    // intentamos capturar y si falla, leemos el estado actual.
+    let fetched: FetchedPaypalOrder;
+    try {
+      const captureResponse = await axios.post(
+        `${PAYPAL_API}/v2/checkout/orders/${token}/capture`,
+        {},
+        {
+          auth: {
+            username: PAYPAL_API_CLIENT!,
+            password: PAYPAL_API_SECRET!,
+          },
+        }
+      );
 
-    // Buscar al usuario en la base de datos
+      const captureData = captureResponse.data;
+      const purchaseUnit = captureData?.purchase_units?.[0];
+      const captureInfo = purchaseUnit?.payments?.captures?.[0];
+      fetched = {
+        id: captureData.id || (token as string),
+        status: captureData.status || "UNKNOWN",
+        payerEmail: captureData?.payer?.email_address,
+        value: captureInfo ? Number(captureInfo.amount?.value) : undefined,
+        currency: captureInfo
+          ? String(captureInfo.amount?.currency_code || "").toUpperCase()
+          : undefined,
+        capturedAt: captureInfo?.create_time
+          ? new Date(captureInfo.create_time)
+          : null,
+        raw: captureData,
+      };
+    } catch (captureErr: any) {
+      // Si ya estaba capturado, leemos la orden directamente.
+      if (captureErr?.response?.status === 422) {
+        try {
+          fetched = await fetchPayPalOrder(token as string);
+        } catch (readErr) {
+          console.error("Error capturing/reading PayPal order:", readErr);
+          res.status(502).json({
+            message: "No se pudo capturar ni leer la orden en PayPal",
+          });
+          return;
+        }
+      } else {
+        console.error("Error capturing PayPal order:", captureErr);
+        res.status(500).json({
+          message: "Error processing payment",
+          error: captureErr?.message,
+        });
+        return;
+      }
+    }
+
+    if (fetched.status !== "COMPLETED") {
+      res
+        .status(400)
+        .json({ message: `PayPal order no completada (status=${fetched.status})` });
+      return;
+    }
+
     const user = await userService.findUserById(userId);
     if (!user) {
       res.status(404).json({ message: "User not found" });
       return;
     }
 
-    // Buscar el rol "paid_user" en la base de datos utilizando RolesService
-    const paidUserRole = await rolesService.findRoles({ name: "user" });
-    if (!paidUserRole || paidUserRole.length === 0) {
-      res.status(500).json({ message: "Role 'user' not found" });
-      return;
-    }
-
-    // Actualizar la suscripción del usuario y agregar el rol "paid_user"
-    const transactionId = response.data.id;
-    const purchaseUnit = response.data.purchase_units?.[0];
-    const captureData = purchaseUnit?.payments?.captures?.[0];
-    const rawPaymentDate = captureData?.create_time;
-
-    if (!rawPaymentDate) {
-      console.error("Payment capture date not found:", rawPaymentDate);
-      res
-        .status(500)
-        .json({ message: "Payment date not found in PayPal response" });
-      return;
-    }
-
-    const paymentDate = new Date(rawPaymentDate);
+    // Idempotencia: si el usuario ya tiene esta misma transacción aplicada,
+    // solo redirigimos sin tocar la DB. El helper lo detecta solo.
+    const paymentDate = fetched.capturedAt || new Date();
     if (isNaN(paymentDate.getTime())) {
-      console.error("Invalid payment date from PayPal:", rawPaymentDate);
       res.status(500).json({ message: "Invalid payment date from PayPal" });
       return;
     }
-    const durationDays = await getSubscriptionDurationDays();
-    const expirationDate = new Date(paymentDate);
-    expirationDate.setDate(expirationDate.getDate() + durationDays);
 
-    user.roles = [paidUserRole[0]]; // Agregar el rol "paid_user"
-    user.subscription = {
-      transactionId,
+    await applySubscriptionCaptureShared({
+      userId,
+      transactionId: fetched.id,
       paymentDate,
-      expirationDate,
-    };
-    await user.save();
+    });
 
     res.redirect(`${HOST}/pagoAprobado`);
   } catch (error) {
@@ -215,7 +240,7 @@ export const createPreference = async (req: Request, res: Response) => {
   try {
     const successUrl =
       process.env.NODE_ENV === "production"
-        ? `https://pilatestransmissionsarah.com/pagoAprobado?state=${userId}`
+        ? `${HOST}/pagoAprobado?state=${userId}`
         : `http://localhost:3016/pagoAprobado?state=${userId}`;
 
     const body = {
@@ -283,38 +308,17 @@ export const capturePreference = async (
       return;
     }
 
-    const paidUserRole = await rolesService.findRoles({ name: "user" });
-    console.log("capturePreference: Retrieved role 'user':", paidUserRole);
-    if (!paidUserRole || paidUserRole.length === 0) {
-      console.log("capturePreference: Role 'user' not found");
-      res.status(500).json({ message: "Role 'user' not found" });
-      return;
-    }
-
     const paymentDate = new Date();
-    const durationDays = await getSubscriptionDurationDays();
-    const expirationDate = new Date(paymentDate);
-    expirationDate.setDate(expirationDate.getDate() + durationDays);
-    console.log(
-      "capturePreference: Calculated paymentDate =",
-      paymentDate,
-      "and expirationDate =",
-      expirationDate,
-      "durationDays =",
-      durationDays
-    );
 
-    user.roles = [paidUserRole[0]];
-    user.subscription = {
+    await applySubscriptionCaptureShared({
+      userId,
       transactionId: payment_id as string,
       paymentDate,
-      expirationDate,
-    };
-    await user.save();
+    });
 
     const successUrl =
       process.env.NODE_ENV === "production"
-        ? `https://pilatestransmissionsarah.com/pagoAprobado?state=${userId}`
+        ? `${HOST}/pagoAprobado?state=${userId}`
         : `http://localhost:3016/pagoAprobado?state=${userId}`;
     console.log("capturePreference: Redirecting to", successUrl);
     res.redirect(successUrl);
@@ -363,8 +367,13 @@ export const applyCoupon = async (
     // Configurar la fecha de expiración hasta el 31 de julio de 2025 (UTC)
     const expirationDate = new Date("2025-07-31T23:59:59Z");
 
-    // Actualizar el rol, la suscripción y marcar que se utilizó el cupón
-    user.roles = [paidUserRole[0]];
+    // Agregar el rol "user" SIN pisar los existentes (admin, superadmin, etc.)
+    user.roles = user.roles || [];
+    const alreadyHas = user.roles.some(
+      (r: any) => String(r._id) === String(paidUserRole[0]._id)
+    );
+    if (!alreadyHas) user.roles.push(paidUserRole[0]);
+
     user.subscription = {
       transactionId: coupon, // Se puede usar el cupón como identificador de transacción
       paymentDate,

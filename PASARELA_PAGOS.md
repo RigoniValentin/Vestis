@@ -29,6 +29,15 @@ MP_ACCESS_TOKENtest=TEST-...sandbox...
 PAYPAL_API=https://api-m.sandbox.paypal.com    # o https://api-m.paypal.com
 PAYPAL_API_CLIENT=...
 PAYPAL_API_SECRET=...
+
+# Webhook de PayPal (opcional, recomendado)
+# Id del webhook creado en https://developer.paypal.com (My Apps & Credentials
+# → Webhooks). Una vez configurado, el backend rechaza peticiones sin firma válida.
+PAYPAL_WEBHOOK_ID=...
+
+# Solo para DEV (curl/Postman): si vale "true", NO valida firma del webhook.
+# NUNCA activar esto en producción.
+PAYPAL_WEBHOOK_SKIP_VERIFY=false
 ```
 
 > En `NODE_ENV=production` se usa `MP_ACCESS_TOKEN`, en otros entornos
@@ -68,6 +77,18 @@ VITE_MP_PUBLIC_KEY=APP_USR-public-key
 | GET    | `/api/v1/payment-settings`    | público     | Datos bancarios y toggles         |
 | GET    | `/api/v1/payment-settings/admin` | admin    | Settings completas                |
 | PUT    | `/api/v1/payment-settings`    | admin       | Actualiza datos / toggles         |
+
+### Webhooks
+
+| Método | Ruta                          | Auth        | Descripción                       |
+| ------ | ----------------------------- | ----------- | --------------------------------- |
+| POST   | `/api/v1/webhooks/paypal`     | público     | Reconciliación asíncrona de pagos PayPal |
+
+### Admin — Reconciliación de pagos PayPal
+
+| Método | Ruta                                   | Auth  | Descripción                                |
+| ------ | -------------------------------------- | ----- | ------------------------------------------ |
+| POST   | `/api/v1/admin/paypal/reconcile`       | admin | Aplica manualmente un pago PayPal perdido (capture no llegó al return_url) |
 
 ### Tienda — Pedidos
 
@@ -174,3 +195,103 @@ VITE_MP_PUBLIC_KEY=APP_USR-public-key
 - Endpoints admin protegidos con `verifyRole(["admin","superadmin"])`.
 - Sólo el dueño del pedido o un admin pueden verlo.
 - Multer limita el archivo a 10 MB y valida MIME.
+- Webhook de PayPal verifica firma contra `PAYPAL_WEBHOOK_ID` (si está
+  configurado). En producción sin ID, rechaza por seguridad.
+
+---
+
+## 🛟 Operación: pagos PayPal no aplicados
+
+Históricamente la plataforma dependía 100% del redirect de PayPal para enterarse
+de los pagos. Si el usuario cerraba la pestaña antes del redirect a
+`return_url`, el dinero llegaba al admin pero la cuenta del usuario nunca se
+actualizaba.
+
+Ahora hay tres mecanismos para cubrir esto:
+
+### 1. Webhook de PayPal (recomendado, automático)
+
+1. Crear webhook en <https://developer.paypal.com> (App → Webhooks → Add webhook).
+2. URL: `https://api.vestisevolucion.com/api/v1/webhooks/paypal`.
+3. Suscribir a los eventos: `CHECKOUT.ORDER.COMPLETED`, `PAYMENT.CAPTURE.COMPLETED`.
+4. Copiar el **Webhook ID** → variable de entorno `PAYPAL_WEBHOOK_ID`.
+5. El backend valida la firma y aplica el pago usando el `reference_id` /
+   `custom_id` que mandamos en cada `purchase_units`. Si no puede inferir el
+   tipo, loggea al admin para que use el endpoint de reconciliación.
+
+### 2. Reconciliación manual admin
+
+`POST /api/v1/admin/paypal/reconcile` con body:
+
+```json
+// Suscripción
+{
+  "kind": "subscription",
+  "transactionId": "5AB12345CD678901E",
+  "email": "usuario@dominio.com"
+}
+
+// Pedido de tienda
+{
+  "kind": "order",
+  "transactionId": "5AB12345CD678901E",
+  "orderId": "67abc123..."
+}
+
+// Documental
+{
+  "kind": "documentary",
+  "transactionId": "5AB12345CD678901E",
+  "email": "usuario@dominio.com",
+  "slug": "humano-existes"
+}
+```
+
+El backend valida el pago contra PayPal (status, currency, monto con
+tolerancia 5% por fees), aplica el efecto correspondiente y devuelve el
+resultado. Es idempotente: si ya estaba aplicado, devuelve `alreadyApplied: true`.
+
+### 3. Script one-shot (emergencia)
+
+Para casos urgentes se incluye `scripts/reconcile-paypal-subscription.ts`.
+Ejecutar con:
+
+```bash
+npm run reconcile:paypal -- --email=dfreyes10@gmail.com --transactionId=1233321412
+```
+
+(también puede invocarse con `npx ts-node-dev --transpile-only -r tsconfig-paths/register scripts/reconcile-paypal-subscription.ts --email=... --transactionId=...`)
+
+El script:
+- Valida el pago contra la API de PayPal (no confiar en sólo el id).
+- Compara el monto capturado contra `PaymentSettings.subscription.paypalUsd`
+  (tolera 5% por fees).
+- Asigna el rol `user` **sin pisar roles existentes** (admin/superadmin).
+- Es idempotente: aborta si el `transactionId` ya está asignado a otro usuario.
+
+---
+
+## 🐛 Bugs colaterales arreglados
+
+| # | Archivo | Bug | Fix |
+|---|---------|-----|-----|
+| 1 | `paymentController.ts:captureOrder` | `user.roles = [paidUserRole]` machacaba roles | `applySubscriptionCapture` agrega con `push`, no pisa |
+| 2 | `paymentController.ts:applyCoupon` | mismo bug de roles | mismo fix |
+| 3 | `paymentController.ts:capturePreference` | mismo bug + hardcode `pilatestransmissionsarah.com` | fix roles + `successUrl = HOST` |
+| 4 | `paymentController.ts:createPreference` | hardcode `pilatestransmissionsarah.com` en prod | `successUrl = HOST` |
+| 5 | `paymentController.ts:captureOrder` | no revalidaba `hasActiveSubscription` | helper shared es idempotente |
+
+## 🧱 Helpers compartidos
+
+Toda la lógica de "aplicar un pago PayPal" vive en
+`src/services/paypalCaptureService.ts`. Tanto el redirect `return_url` como
+el webhook y la reconciliación admin usan los mismos helpers. Esto evita
+duplicación y comportamiento divergente entre los caminos.
+
+Funciones exportadas:
+- `fetchPayPalOrder(transactionId)` — consulta cruda.
+- `assertPaypalSubscriptionCompleted(transactionId)` — valida estado y monto.
+- `applySubscriptionCapture({ userId, transactionId, paymentDate })`
+- `applyOrderCapture({ orderId, transactionId, payerEmail, grantCommunityBonusFn })`
+- `applyDocumentaryCapture({ userId, slug, transactionId })`
+
