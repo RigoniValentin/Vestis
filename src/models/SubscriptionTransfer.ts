@@ -5,17 +5,29 @@ export type SubscriptionTransferStatus =
   | "approved"
   | "rejected";
 
+export type SubscriptionTransferMethod = "bank" | "prex";
+
 /**
- * Registro de una solicitud de suscripción mediante transferencia bancaria,
- * pendiente de aprobación por el admin.
+ * Registro de una solicitud de suscripción mediante un canal de
+ * transferencia (banco tradicional o billetera virtual PREX). El admin
+ * revisa el comprobante y aprueba o rechaza desde el panel.
+ *
  * Al aprobarse, se actualiza User.subscription.
  */
 export interface ISubscriptionTransfer extends Document {
   userId: Types.ObjectId;
   amount: number;
   currency: string;
-  referenceNumber: string;
-  receiptUrl: string;
+  method: SubscriptionTransferMethod;
+
+  /** Comprobante del canal "bank" (transferencia bancaria). */
+  referenceNumber?: string;
+  receiptUrl?: string;
+
+  /** Comprobante del canal "prex" (billetera virtual). */
+  prexReferenceNumber?: string;
+  prexReceiptUrl?: string;
+
   status: SubscriptionTransferStatus;
   adminNotes?: string;
   reviewedBy?: Types.ObjectId;
@@ -34,8 +46,19 @@ const SubscriptionTransferSchema: Schema = new Schema<ISubscriptionTransfer>(
     },
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, default: "ARS" },
-    referenceNumber: { type: String, required: true, trim: true },
-    receiptUrl: { type: String, required: true, trim: true },
+    method: {
+      type: String,
+      enum: ["bank", "prex"],
+      default: "bank",
+      required: true,
+    },
+
+    referenceNumber: { type: String, trim: true },
+    receiptUrl: { type: String, trim: true },
+
+    prexReferenceNumber: { type: String, trim: true },
+    prexReceiptUrl: { type: String, trim: true },
+
     status: {
       type: String,
       enum: ["awaiting_review", "approved", "rejected"],

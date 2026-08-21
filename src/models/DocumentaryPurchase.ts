@@ -4,6 +4,7 @@ export type DocPurchaseMethod =
   | "paypal"
   | "mercadopago"
   | "transfer"
+  | "prex"
   | "coupon"
   | "admin"
   | "free";
@@ -26,9 +27,14 @@ export interface IDocumentaryPurchase extends Document {
   status: DocPurchaseStatus;
   paidAt?: Date;
 
-  // Para transferencia / revisión admin
+  // Transferencia bancaria (canal "transfer")
   transferReferenceNumber?: string;
   transferReceiptUrl?: string;
+
+  // Billetera virtual PREX (canal "prex")
+  prexReferenceNumber?: string;
+  prexReceiptUrl?: string;
+
   adminNotes?: string;
   reviewedBy?: Types.ObjectId;
   reviewedAt?: Date;
@@ -56,7 +62,15 @@ const DocumentaryPurchaseSchema: Schema = new Schema<IDocumentaryPurchase>(
     method: {
       type: String,
       required: true,
-      enum: ["paypal", "mercadopago", "transfer", "coupon", "admin", "free"],
+      enum: [
+        "paypal",
+        "mercadopago",
+        "transfer",
+        "prex",
+        "coupon",
+        "admin",
+        "free",
+      ],
     },
     amount: { type: Number, required: true, min: 0 },
     currency: { type: String, required: true, default: "ARS" },
@@ -78,6 +92,10 @@ const DocumentaryPurchaseSchema: Schema = new Schema<IDocumentaryPurchase>(
 
     transferReferenceNumber: { type: String, trim: true },
     transferReceiptUrl: { type: String, trim: true },
+
+    prexReferenceNumber: { type: String, trim: true },
+    prexReceiptUrl: { type: String, trim: true },
+
     adminNotes: { type: String, trim: true, maxlength: 2000 },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
     reviewedAt: { type: Date },

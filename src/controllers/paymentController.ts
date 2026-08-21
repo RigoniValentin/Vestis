@@ -79,6 +79,10 @@ export const createOrder = async (
     purchase_units: [
       {
         description: "Suscripción mensual - Vestis Evolución",
+        // custom_id y reference_id permiten al webhook reconciliar
+        // el pago aunque el usuario cierre la pestaña antes del redirect.
+        reference_id: `subscription:${userId}`,
+        custom_id: `subscription:${userId}`,
         amount: {
           currency_code: "USD",
           value: (await getSubscriptionPriceUsdForPayPal()).toFixed(2),

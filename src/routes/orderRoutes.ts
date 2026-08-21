@@ -12,6 +12,7 @@ import {
   createOrderPaypalOrder,
   captureOrderPaypalOrder,
   uploadOrderReceipt,
+  uploadOrderPrexReceipt,
   approveOrderPayment,
   rejectOrderPayment,
   updateFulfillmentStatus,
@@ -55,6 +56,21 @@ router.post(
     });
   },
   uploadOrderReceipt
+);
+router.post(
+  "/:id/payment/prex",
+  verifyToken,
+  (req, res, next) => {
+    uploadReceipt(req, res, (err: any) => {
+      if (err) {
+        return res
+          .status(400)
+          .json({ success: false, message: err.message || "Error de subida" });
+      }
+      next();
+    });
+  },
+  uploadOrderPrexReceipt
 );
 
 // Admin

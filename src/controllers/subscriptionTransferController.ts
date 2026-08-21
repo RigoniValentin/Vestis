@@ -13,10 +13,30 @@ import {
 
 const rolesService = new RolesService(new RolesRepository());
 
+type TransferMethod = "bank" | "prex";
+
+/**
+ * Resetea los campos del canal opuesto para no dejar comprobantes
+ * "fantasma" cuando un usuario cambia el método entre solicitudes.
+ */
+const resetOtherChannelFields = (
+  doc: any,
+  channel: TransferMethod
+): void => {
+  if (channel === "bank") {
+    doc.prexReferenceNumber = undefined;
+    doc.prexReceiptUrl = undefined;
+  } else {
+    doc.referenceNumber = undefined;
+    doc.receiptUrl = undefined;
+  }
+};
+
 /**
  * POST /subscription/transfer
- * multipart/form-data: receipt, referenceNumber, amount?
+ * multipart/form-data: receipt, referenceNumber, amount?, method?
  * Crea una solicitud de suscripción por transferencia (pendiente de admin).
+ * `method` puede ser "bank" (default) o "prex".
  */
 export const uploadSubscriptionReceipt = async (
   req: Request,
@@ -25,7 +45,7 @@ export const uploadSubscriptionReceipt = async (
   try {
     const userId = (req as any).currentUser?.id;
     const file = req.file;
-    const { referenceNumber, amount } = req.body || {};
+    const { referenceNumber, amount, method } = req.body || {};
 
     if (!file) {
       res.status(400).json({ success: false, message: "Comprobante requerido" });
@@ -38,6 +58,8 @@ export const uploadSubscriptionReceipt = async (
         .json({ success: false, message: "Número de referencia requerido" });
       return;
     }
+
+    const channel: TransferMethod = method === "prex" ? "prex" : "bank";
 
     // Precio configurable desde PaymentSettings (lo edita el admin).
     const defaultArs = await getSubscriptionPriceArs();
@@ -54,28 +76,48 @@ export const uploadSubscriptionReceipt = async (
     });
 
     if (existing) {
-      if (existing.receiptUrl) {
+      // Borrar comprobante previo del canal activo (si es el mismo canal)
+      const prevUrl =
+        channel === "prex" ? existing.prexReceiptUrl : existing.receiptUrl;
+      if (prevUrl) {
         try {
-          await fs.unlink(path.join(process.cwd(), existing.receiptUrl));
+          await fs.unlink(path.join(process.cwd(), prevUrl));
         } catch {}
       }
-      existing.referenceNumber = String(referenceNumber).trim();
-      existing.receiptUrl = buildReceiptUrl(file.filename);
+      existing.method = channel;
+      const trimmedRef = String(referenceNumber).trim();
+      if (channel === "prex") {
+        existing.prexReferenceNumber = trimmedRef;
+        existing.prexReceiptUrl = buildReceiptUrl(file.filename);
+      } else {
+        existing.referenceNumber = trimmedRef;
+        existing.receiptUrl = buildReceiptUrl(file.filename);
+      }
       existing.amount = finalAmount;
       existing.status = "awaiting_review";
       existing.adminNotes = undefined;
+      resetOtherChannelFields(existing, channel);
       await existing.save();
       res.json({ success: true, data: existing });
       return;
     }
 
-    const transfer = await SubscriptionTransferModel.create({
+    const data: any = {
       userId,
       amount: finalAmount,
       currency: "ARS",
-      referenceNumber: String(referenceNumber).trim(),
-      receiptUrl: buildReceiptUrl(file.filename),
-    });
+      method: channel,
+      status: "awaiting_review",
+    };
+    if (channel === "prex") {
+      data.prexReferenceNumber = String(referenceNumber).trim();
+      data.prexReceiptUrl = buildReceiptUrl(file.filename);
+    } else {
+      data.referenceNumber = String(referenceNumber).trim();
+      data.receiptUrl = buildReceiptUrl(file.filename);
+    }
+
+    const transfer = await SubscriptionTransferModel.create(data);
     res.json({ success: true, data: transfer });
   } catch (error: any) {
     console.error("uploadSubscriptionReceipt error:", error);
@@ -110,9 +152,10 @@ export const listSubscriptionTransfers = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { status } = req.query;
+    const { status, method } = req.query;
     const filter: any = {};
     if (status) filter.status = status;
+    if (method) filter.method = method;
     const list = await SubscriptionTransferModel.find(filter)
       .populate("userId", "name email username")
       .sort({ createdAt: -1 })

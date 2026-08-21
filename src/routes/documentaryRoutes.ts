@@ -21,6 +21,7 @@ import {
 } from "@controllers/documentaryPaymentController";
 import {
   uploadDocumentaryReceipt,
+  uploadDocumentaryPrexReceipt,
   listAllDocumentaryPurchases,
   approveDocumentaryPurchase,
   rejectDocumentaryPurchase,
@@ -91,6 +92,21 @@ router.post(
     });
   },
   uploadDocumentaryReceipt
+);
+router.post(
+  "/:slug/payment/prex",
+  verifyToken,
+  (req, res, next) => {
+    uploadReceipt(req, res, (err: any) => {
+      if (err) {
+        return res
+          .status(400)
+          .json({ success: false, message: err.message || "Error de subida" });
+      }
+      next();
+    });
+  },
+  uploadDocumentaryPrexReceipt
 );
 
 // Admin

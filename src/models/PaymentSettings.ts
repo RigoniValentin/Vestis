@@ -2,12 +2,61 @@ import mongoose, { Document, Schema } from "mongoose";
 
 /**
  * Documento singleton de configuración de pagos.
- * Contiene los datos bancarios para transferencias y flags para
- * habilitar/deshabilitar métodos de pago a nivel global,
- * además de los precios configurables del abono/suscripción.
+ *
+ * Contiene los datos para los distintos medios de "transferencia" (canales)
+ * que el cliente puede usar para pagar: banco tradicional y billetera
+ * virtual PREX. La estructura `transferChannels` es un mapa flexible para
+ * poder agregar nuevos canales en el futuro sin migrar el schema.
+ *
+ * También incluye los toggles para habilitar/deshabilitar los métodos de
+ * pago a nivel global y los precios configurables del abono/suscripción.
  */
+
+/**
+ * Datos que el admin puede cargar para cualquier canal de transferencia.
+ * Los campos son todos opcionales: depende del canal cuáles aplican.
+ */
+export interface ITransferChannelInfo {
+  /** Etiqueta humana opcional para identificar el canal (ej: "Banco Galicia"). */
+  label?: string;
+  /** Titular de la cuenta / wallet. */
+  accountHolder?: string;
+  /** Identificador CUIT/CUIL/DNI del titular. */
+  taxId?: string;
+  /** Nro de cuenta tradicional (cuando aplica). */
+  accountNumber?: string;
+  /** CBU / Alias / CVU. Se conservan como string libre para soportar varios formatos. */
+  cbu?: string;
+  /** Alias / handle del canal (ej: "vestisevolucion.PREX"). */
+  alias?: string;
+  /** Campo extra para campos específicos del canal (CVU Pesos, email wallet, etc.). */
+  extraFieldLabel?: string;
+  extraFieldValue?: string;
+  /** Texto libre con instrucciones adicionales para el cliente. */
+  extraInfo?: string;
+}
+
 export interface IPaymentSettings extends Document {
-  // Datos bancarios para mostrar al usuario que paga por transferencia
+  /**
+   * Canales de transferencia disponibles.
+   * - `bank`: cuenta bancaria tradicional (compatibilidad: mantiene la
+   *   estructura anterior con `bankName`, `cuit`, `cbu`, etc.).
+   * - `prex`: billetera virtual PREX (u otra billetera, la estructura es
+   *   la misma).
+   *
+   * Es un objeto libre (Record) para que el admin pueda agregar más
+   * canales sin migrar la base.
+   */
+  transferChannels: {
+    bank: ITransferChannelInfo;
+    prex: ITransferChannelInfo;
+    [key: string]: ITransferChannelInfo;
+  };
+
+  /**
+   * @deprecated Mantener por retrocompatibilidad con versiones viejas del
+   * front. El nuevo shape vive en `transferChannels.bank`.
+   */
   bank: {
     bankName?: string;
     accountHolder?: string;
@@ -17,9 +66,18 @@ export interface IPaymentSettings extends Document {
     alias?: string;
     extraInfo?: string;
   };
+
   // Toggles globales
   mercadopagoEnabled: boolean;
   paypalEnabled: boolean;
+  /** Habilita el canal de transferencia bancaria. */
+  bankEnabled: boolean;
+  /** Habilita el canal PREX (billetera virtual). */
+  prexEnabled: boolean;
+  /**
+   * @deprecated Mantener por retrocompatibilidad: `true` si CUALQUIER
+   * canal de transferencia está activo.
+   */
   transferEnabled: boolean;
 
   // Para checkout WhatsApp (también editable desde admin)
@@ -39,8 +97,27 @@ export interface IPaymentSettings extends Document {
   updatedAt: Date;
 }
 
+const TransferChannelInfoSchema = new Schema<ITransferChannelInfo>(
+  {
+    label: { type: String, trim: true, default: "" },
+    accountHolder: { type: String, trim: true, default: "" },
+    taxId: { type: String, trim: true, default: "" },
+    accountNumber: { type: String, trim: true, default: "" },
+    cbu: { type: String, trim: true, default: "" },
+    alias: { type: String, trim: true, default: "" },
+    extraFieldLabel: { type: String, trim: true, default: "" },
+    extraFieldValue: { type: String, trim: true, default: "" },
+    extraInfo: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
 const PaymentSettingsSchema: Schema = new Schema<IPaymentSettings>(
   {
+    transferChannels: {
+      bank: { type: TransferChannelInfoSchema, default: () => ({}) },
+      prex: { type: TransferChannelInfoSchema, default: () => ({}) },
+    },
     bank: {
       bankName: { type: String, trim: true, default: "" },
       accountHolder: { type: String, trim: true, default: "" },
@@ -52,6 +129,8 @@ const PaymentSettingsSchema: Schema = new Schema<IPaymentSettings>(
     },
     mercadopagoEnabled: { type: Boolean, default: true },
     paypalEnabled: { type: Boolean, default: true },
+    bankEnabled: { type: Boolean, default: true },
+    prexEnabled: { type: Boolean, default: true },
     transferEnabled: { type: Boolean, default: true },
     whatsappPhone: { type: String, default: "5493512657790" },
     subscription: {
@@ -63,7 +142,7 @@ const PaymentSettingsSchema: Schema = new Schema<IPaymentSettings>(
       fromPriceArs: { type: Number, default: null },
     },
   },
-  { timestamps: true, versionKey: false }
+  { timestamps: true, versionKey: false, strict: false }
 );
 
 export const PaymentSettingsModel = mongoose.model<IPaymentSettings>(
@@ -79,7 +158,60 @@ export const getPaymentSettings = async (): Promise<IPaymentSettings> => {
   if (!doc) {
     doc = await PaymentSettingsModel.create({});
   }
-  return doc;
+  // Migración silenciosa: si el documento viejo tiene `bank` con datos pero
+  // `transferChannels.bank` está vacío, los copiamos para que el admin no
+  // pierda la configuración al actualizar.
+  if (doc) {
+    await migrateLegacyBank(doc);
+  }
+  return doc as IPaymentSettings;
+};
+
+/**
+ * Copia los datos legacy de `bank` al nuevo `transferChannels.bank` si este
+ * está vacío. Se ejecuta cada vez que se lee el singleton, así el front
+ * siempre ve los datos consistentes.
+ */
+const migrateLegacyBank = async (
+  doc: IPaymentSettings
+): Promise<void> => {
+  const legacy = doc.bank as any;
+  const channel = doc.transferChannels?.bank as any;
+  const hasLegacy =
+    !!legacy &&
+    (legacy.bankName ||
+      legacy.accountHolder ||
+      legacy.cuit ||
+      legacy.accountNumber ||
+      legacy.cbu ||
+      legacy.alias ||
+      legacy.extraInfo);
+  const channelEmpty =
+    !channel ||
+    !(
+      channel.accountHolder ||
+      channel.taxId ||
+      channel.accountNumber ||
+      channel.cbu ||
+      channel.alias ||
+      channel.extraFieldValue
+    );
+
+  if (hasLegacy && channelEmpty) {
+    doc.transferChannels = doc.transferChannels || ({} as any);
+    doc.transferChannels.bank = {
+      label: legacy.bankName || "",
+      accountHolder: legacy.accountHolder || "",
+      taxId: legacy.cuit || "",
+      accountNumber: legacy.accountNumber || "",
+      cbu: legacy.cbu || "",
+      alias: legacy.alias || "",
+      extraInfo: legacy.extraInfo || "",
+      extraFieldLabel: "",
+      extraFieldValue: "",
+    };
+    await doc.save();
+  }
 };
 
 /* ─── Helpers compartidos para los precios del abono ──────────────────────

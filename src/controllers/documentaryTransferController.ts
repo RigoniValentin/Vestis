@@ -103,6 +103,100 @@ export const uploadDocumentaryReceipt = async (
 };
 
 /**
+ * POST /documentaries/:slug/payment/prex
+ * Mismo flujo que la transferencia bancaria, pero el comprobante va al
+ * canal PREX. El admin valida y aprueba / rechaza desde el panel.
+ */
+export const uploadDocumentaryPrexReceipt = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).currentUser?.id;
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
+    const file = req.file;
+    const { referenceNumber } = req.body || {};
+
+    if (!file) {
+      res.status(400).json({ success: false, message: "Comprobante requerido" });
+      return;
+    }
+    if (!referenceNumber || String(referenceNumber).trim().length < 2) {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res
+        .status(400)
+        .json({ success: false, message: "Número de referencia requerido" });
+      return;
+    }
+
+    const doc = await DocumentaryModel.findOne({ slug }).lean();
+    if (!doc) {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res
+        .status(404)
+        .json({ success: false, message: "Documental no encontrado" });
+      return;
+    }
+
+    if (await userOwnsDocumentary(userId, slug)) {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res.status(400).json({ success: false, message: "Ya posees este documental" });
+      return;
+    }
+
+    const existing = await DocumentaryPurchaseModel.findOne({
+      userId,
+      documentarySlug: slug,
+      status: { $in: ["pending", "awaiting_review", "rejected"] },
+    });
+
+    if (existing) {
+      if (existing.prexReceiptUrl) {
+        try {
+          await fs.unlink(
+            path.join(process.cwd(), existing.prexReceiptUrl)
+          );
+        } catch {}
+      }
+      existing.method = "prex";
+      existing.amount = doc.priceArs;
+      existing.currency = doc.currency || "ARS";
+      existing.status = "awaiting_review";
+      existing.prexReferenceNumber = String(referenceNumber).trim();
+      existing.prexReceiptUrl = buildReceiptUrl(file.filename);
+      existing.adminNotes = undefined;
+      await existing.save();
+      res.json({ success: true, data: existing });
+      return;
+    }
+
+    const purchase = await DocumentaryPurchaseModel.create({
+      userId,
+      documentarySlug: slug,
+      method: "prex",
+      amount: doc.priceArs,
+      currency: doc.currency || "ARS",
+      status: "awaiting_review",
+      prexReferenceNumber: String(referenceNumber).trim(),
+      prexReceiptUrl: buildReceiptUrl(file.filename),
+    });
+
+    res.json({ success: true, data: purchase });
+  } catch (error: any) {
+    console.error("uploadDocumentaryPrexReceipt error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Error al subir comprobante PREX" });
+  }
+};
+
+/**
  * GET /documentaries/admin/purchases?status=awaiting_review
  * Lista compras de TODOS los documentales (admin).
  */

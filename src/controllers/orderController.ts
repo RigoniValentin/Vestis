@@ -217,13 +217,16 @@ export const createOrder = async (
       return;
     }
 
-    const allowedMethods = ["mercadopago", "paypal", "transfer", "whatsapp"];
+    const allowedMethods = ["mercadopago", "paypal", "transfer", "prex", "whatsapp"];
     if (!allowedMethods.includes(paymentMethod)) {
       res.status(400).json({ message: "Método de pago inválido" });
       return;
     }
 
-    // Verificar que los métodos online estén habilitados
+    // Verificar que los métodos online estén habilitados. "transfer" se
+    // acepta como placeholder para cualquier canal de transferencia
+    // (bancaria o PREX); el método definitivo se setea al subir el
+    // comprobante desde el modal de pago.
     const settings = await getPaymentSettings();
     if (paymentMethod === "mercadopago" && !settings.mercadopagoEnabled) {
       res.status(400).json({ message: "MercadoPago no está habilitado" });
@@ -233,8 +236,18 @@ export const createOrder = async (
       res.status(400).json({ message: "PayPal no está habilitado" });
       return;
     }
-    if (paymentMethod === "transfer" && !settings.transferEnabled) {
-      res.status(400).json({ message: "Transferencia no está habilitada" });
+    if (paymentMethod === "transfer") {
+      const anyTransferEnabled =
+        settings.transferEnabled ||
+        settings.bankEnabled ||
+        settings.prexEnabled;
+      if (!anyTransferEnabled) {
+        res.status(400).json({ message: "No hay canales de transferencia habilitados" });
+        return;
+      }
+    }
+    if (paymentMethod === "prex" && !settings.prexEnabled) {
+      res.status(400).json({ message: "PREX no está habilitado" });
       return;
     }
 
@@ -632,6 +645,78 @@ export const uploadOrderReceipt = async (
     res
       .status(500)
       .json({ message: "Error subiendo comprobante", error: error?.message });
+  }
+};
+
+/**
+ * POST /orders/:id/payment/prex
+ * Mismo flujo que la transferencia bancaria, pero el comprobante va al
+ * canal PREX. El admin valida y aprueba / rechaza desde el panel.
+ */
+export const uploadOrderPrexReceipt = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).currentUser?.id;
+    const { id } = req.params;
+    const file = req.file;
+    const { referenceNumber } = req.body || {};
+
+    if (!file) {
+      res.status(400).json({ message: "Comprobante requerido" });
+      return;
+    }
+    if (!referenceNumber || String(referenceNumber).trim().length < 2) {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res.status(400).json({ message: "Número de referencia requerido" });
+      return;
+    }
+
+    const order = await OrderModel.findById(id);
+    if (!order) {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res.status(404).json({ message: "Pedido no encontrado" });
+      return;
+    }
+    if (String(order.userId) !== String(userId)) {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res.status(403).json({ message: "No autorizado" });
+      return;
+    }
+    if (order.paymentStatus === "approved") {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res.status(400).json({ message: "El pedido ya está pagado" });
+      return;
+    }
+
+    if (order.prexReceiptUrl) {
+      try {
+        const prev = path.join(process.cwd(), order.prexReceiptUrl);
+        await fs.unlink(prev);
+      } catch {}
+    }
+
+    order.paymentMethod = "prex";
+    order.prexReceiptUrl = buildReceiptUrl(file.filename);
+    order.prexReferenceNumber = String(referenceNumber).trim();
+    order.paymentStatus = "awaiting_review";
+    await order.save();
+
+    res.json({ success: true, data: order });
+  } catch (error: any) {
+    console.error("uploadOrderPrexReceipt error:", error);
+    res
+      .status(500)
+      .json({ message: "Error subiendo comprobante PREX", error: error?.message });
   }
 };
 

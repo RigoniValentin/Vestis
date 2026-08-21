@@ -4,6 +4,7 @@ export type OrderPaymentMethod =
   | "mercadopago"
   | "paypal"
   | "transfer"
+  | "prex"
   | "whatsapp";
 
 export type OrderPaymentStatus =
@@ -55,9 +56,19 @@ export interface IOrder extends Document {
   gatewayOrderId?: string;
   gatewayPayerEmail?: string;
 
-  // Transferencia bancaria
+  /**
+   * Comprobante de transferencia bancaria.
+   * Mantener los nombres `transfer*` por compatibilidad con datos legacy.
+   */
   transferReferenceNumber?: string;
   transferReceiptUrl?: string;
+
+  /**
+   * Comprobante de pago por billetera virtual PREX (u otra wallet).
+   * El método se distingue por `paymentMethod === "prex"`.
+   */
+  prexReferenceNumber?: string;
+  prexReceiptUrl?: string;
 
   // Revisión por admin
   adminNotes?: string;
@@ -110,7 +121,7 @@ const OrderSchema: Schema = new Schema<IOrder>(
 
     paymentMethod: {
       type: String,
-      enum: ["mercadopago", "paypal", "transfer", "whatsapp"],
+      enum: ["mercadopago", "paypal", "transfer", "prex", "whatsapp"],
       required: true,
     },
     paymentStatus: {
@@ -138,6 +149,9 @@ const OrderSchema: Schema = new Schema<IOrder>(
 
     transferReferenceNumber: { type: String, trim: true },
     transferReceiptUrl: { type: String, trim: true },
+
+    prexReferenceNumber: { type: String, trim: true },
+    prexReceiptUrl: { type: String, trim: true },
 
     adminNotes: { type: String, trim: true, maxlength: 2000 },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },

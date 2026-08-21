@@ -4,8 +4,17 @@ Sistema integral de pagos para Tienda, Documental y Suscripciones, con:
 
 - **MercadoPago** (ARS)
 - **PayPal** (USD)
-- **Transferencia bancaria** (con subida de comprobante y aprobación manual)
+- **Transferencia bancaria** (canal "bank", con subida de comprobante y aprobación manual)
+- **PREX** (canal "prex", billetera virtual con el mismo flujo que la
+  transferencia bancaria)
 - **WhatsApp** (coordinación directa, exclusivo de la Tienda)
+
+> Los canales de transferencia (`bank` y `prex`) comparten el flujo:
+> el cliente ve los datos del canal, sube el comprobante, y el admin lo
+> aprueba o lo rechaza desde el panel. La arquitectura es extensible: para
+> agregar un nuevo canal basta con declararlo en
+> `paymentSettingsController.ts` (`TRANSFER_CHANNELS`) y agregarlo a la
+> config del front (`TransferChannelKey`).
 
 ---
 
@@ -55,16 +64,22 @@ VITE_MP_PUBLIC_KEY=APP_USR-public-key
 
 1. Inicia sesión con un usuario con rol `admin` o `superadmin`.
 2. Entra a **`/admin/pagos`** → tab **Configuración**.
-3. Carga los datos bancarios (Banco, Titular, CUIT, CBU, Alias, etc.).
-4. Activa/desactiva los métodos `MercadoPago`, `PayPal`, `Transferencia` según
-   estén disponibles.
+3. Carga los datos de cada canal de transferencia:
+   - **Transferencia bancaria**: Banco, Titular, CUIT/DNI, Nº de Cuenta,
+     CBU, Alias, etc.
+   - **PREX**: Titular, CVU, Alias, Nº de Cuenta Prex, etc. (usar los
+     campos "extra" si necesitás un campo específico como "Cuenta Prex").
+4. Activa/desactiva cada método (`MercadoPago`, `PayPal`, "Transferencia
+   bancaria", `PREX`) según estén disponibles.
 5. Indica el número de WhatsApp (formato internacional sin `+`, ej:
    `5493512657790`).
 6. Pulsa **Guardar cambios**.
 
 > El backend crea automáticamente un singleton de `PaymentSettings` en la
-> primera consulta. Los datos bancarios quedan visibles en el front cuando el
-> cliente elige "Transferencia" en cualquier flujo de pago.
+> primera consulta. En la primera lectura migra los datos legacy del campo
+> `bank` al nuevo `transferChannels.bank` para no perder la configuración
+> existente. Los datos de cada canal quedan visibles en el front cuando el
+> cliente elige ese medio de pago en cualquier flujo.
 
 ---
 
@@ -101,6 +116,7 @@ VITE_MP_PUBLIC_KEY=APP_USR-public-key
 | POST   | `/api/v1/orders/:id/payment/mp/create-preference`          | user   |
 | POST   | `/api/v1/orders/:id/payment/paypal/create-order`           | user   |
 | POST   | `/api/v1/orders/:id/payment/transfer`                      | user (multipart con `receipt` + `referenceNumber`) |
+| POST   | `/api/v1/orders/:id/payment/prex`                          | user (multipart con `receipt` + `referenceNumber`) |
 | GET    | `/api/v1/orders/payment/mp/capture`                        | público (callback) |
 | GET    | `/api/v1/orders/payment/paypal/capture`                    | público (callback) |
 | GET    | `/api/v1/orders`                                           | admin  |
@@ -108,29 +124,59 @@ VITE_MP_PUBLIC_KEY=APP_USR-public-key
 | PATCH  | `/api/v1/orders/:id/admin/reject`                          | admin  |
 | PATCH  | `/api/v1/orders/:id/admin/fulfillment`                     | admin  |
 
+> El campo `paymentMethod` del pedido puede valer `"transfer"` (banco) o
+> `"prex"` (billetera virtual). Los comprobantes y referencias se guardan
+> en `transferReceiptUrl`/`transferReferenceNumber` o en
+> `prexReceiptUrl`/`prexReferenceNumber` según corresponda.
+
 ### Documentales — Pago por transferencia
 
 | Método | Ruta                                                  | Auth  |
 | ------ | ----------------------------------------------------- | ----- |
 | POST   | `/api/v1/documentaries/:slug/payment/transfer`        | user (multipart) |
+| POST   | `/api/v1/documentaries/:slug/payment/prex`            | user (multipart) |
 | GET    | `/api/v1/documentaries/my-purchases`                  | user  |
 | GET    | `/api/v1/documentaries/admin/purchases`               | admin |
 | PATCH  | `/api/v1/documentaries/purchases/:id/approve`         | admin |
 | PATCH  | `/api/v1/documentaries/purchases/:id/reject`          | admin |
 
+> El campo `method` de la compra admite `"transfer"` o `"prex"`. El
+> admin puede filtrar por método y canal desde el panel.
+
 ### Suscripciones — Pago por transferencia
 
 | Método | Ruta                                              | Auth  |
 | ------ | ------------------------------------------------- | ----- |
-| POST   | `/api/v1/subscription/transfer`                   | user (multipart con `receipt` + `referenceNumber` + `amount?`) |
+| POST   | `/api/v1/subscription/transfer`                   | user (multipart con `receipt` + `referenceNumber` + `amount?` + `method=bank|prex?`) |
 | GET    | `/api/v1/subscription/transfer/my`                | user  |
-| GET    | `/api/v1/subscription/transfer`                   | admin |
+| GET    | `/api/v1/subscription/transfer`                   | admin (acepta `?status=` y `?method=`) |
 | PATCH  | `/api/v1/subscription/transfer/:id/approve`       | admin |
 | PATCH  | `/api/v1/subscription/transfer/:id/reject`        | admin |
 
 > El multer config en `middlewares/uploadReceipt.ts` acepta JPG/PNG/WEBP/GIF/PDF
 > y guarda en `uploads/receipts/`. El backend expone `/uploads/...` como
-> estático, por eso el front resuelve `transferReceiptUrl` directo.
+> estático, por eso el front resuelve `transferReceiptUrl` /
+> `prexReceiptUrl` directo.
+
+---
+
+## 💸 Datos sugeridos para PREX (carga inicial)
+
+Al activar el canal PREX, completá la pestaña **Configuración → PREX** con
+los datos de la billetera:
+
+| Campo frontend     | Ejemplo                          |
+| ------------------ | -------------------------------- |
+| Titular            | Marina Rovera                    |
+| CBU / CVU          | 0000013000032399654629           |
+| Alias              | vestisevolucion.PREX             |
+| Nº de Cuenta       | (vacío)                          |
+| Campo extra (label)| Cuenta Prex                      |
+| Campo extra (valor)| 39965462                         |
+
+> El "campo extra" se muestra tal como lo cargues (etiqueta + valor), por
+> eso sirve para exponer campos específicos del canal (en este caso el
+> número de cuenta de la billetera PREX).
 
 ---
 
@@ -169,22 +215,33 @@ VITE_MP_PUBLIC_KEY=APP_USR-public-key
 
 ### Admin (`/admin/pagos`)
 
-- Tab Pedidos / Documentales / Suscripciones con filtros por estado.
+- Tab Pedidos / Documentales / Suscripciones con filtros por estado y, en
+  el caso de Documentales y Suscripciones, por método / canal.
 - Aprobar / Rechazar (motivo requerido en rechazo).
-- Ver comprobantes adjuntos.
+- Ver comprobantes adjuntos (se muestran correctamente tanto si el pago
+  fue por transferencia bancaria como por PREX).
 - Cambiar estado de envío de pedidos.
-- Tab Configuración: editar datos bancarios, toggles y WhatsApp.
+- Tab Configuración: editar datos de cada canal (`bank`, `prex`), toggles
+  individuales y WhatsApp. Cada canal se puede activar/desactivar por
+  separado sin afectar al resto.
 
 ---
 
 ## ✅ Modelos de datos clave (Backend)
 
-- `Order` — pedido de tienda con `paymentMethod`, `paymentStatus`,
-  `fulfillmentStatus`, datos de gateway o comprobante.
-- `DocumentaryPurchase` — extendido con `method=transfer`, estados
-  `awaiting_review`/`rejected`, datos del comprobante.
-- `SubscriptionTransfer` — solicitudes de suscripción por transferencia.
-- `PaymentSettings` — singleton de configuración (banco, toggles, WhatsApp).
+- `Order` — pedido de tienda con `paymentMethod` (`"mercadopago"`,
+  `"paypal"`, `"transfer"`, `"prex"` o `"whatsapp"`), `paymentStatus`,
+  `fulfillmentStatus`, datos de gateway o comprobante. Para los pagos por
+  transferencia/PREX guarda `transferReceiptUrl`/`transferReferenceNumber`
+  o `prexReceiptUrl`/`prexReferenceNumber`.
+- `DocumentaryPurchase` — extendido con `method` (`"transfer"` o `"prex"`
+  además de MP/PayPal/coupon/admin/free), estados `awaiting_review`/
+  `rejected`, datos del comprobante.
+- `SubscriptionTransfer` — solicitudes de suscripción por transferencia,
+  con `method: "bank" | "prex"` para indicar el canal.
+- `PaymentSettings` — singleton con `transferChannels: { bank, prex, ... }`
+  (escalable), toggles por método, número de WhatsApp y precios del
+  abono.
 
 ---
 

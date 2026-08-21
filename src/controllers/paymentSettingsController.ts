@@ -2,10 +2,41 @@ import { Request, Response } from "express";
 import { getPaymentSettings, PaymentSettingsModel } from "@models/PaymentSettings";
 
 /**
+ * Lista de canales de transferencia que la app soporta. Mantener este
+ * array sincronizado con el frontend (paymentSettingsService) para que el
+ * admin pueda editar los datos y toggles desde el panel.
+ */
+const TRANSFER_CHANNELS = ["bank", "prex"] as const;
+type TransferChannelKey = (typeof TRANSFER_CHANNELS)[number];
+
+/**
+ * Normaliza el body del PUT para el campo `transferChannels.<key>`.
+ * Devuelve `undefined` si el body no incluye datos del canal.
+ */
+const sanitizeChannel = (raw: any) => {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Record<string, string> = {};
+  for (const key of [
+    "label",
+    "accountHolder",
+    "taxId",
+    "accountNumber",
+    "cbu",
+    "alias",
+    "extraFieldLabel",
+    "extraFieldValue",
+    "extraInfo",
+  ]) {
+    if (typeof raw[key] === "string") out[key] = raw[key].trim();
+  }
+  return out;
+};
+
+/**
  * GET /payment-settings
  * Endpoint público: devuelve los datos visibles para el cliente
- * (datos bancarios, toggles de métodos de pago, whatsapp, precios del abono).
- * No expone metadata sensible adicional.
+ * (datos de cada canal de transferencia, toggles de métodos de pago,
+ * whatsapp y precios del abono).
  */
 export const getPublicPaymentSettings = async (
   _req: Request,
@@ -16,9 +47,12 @@ export const getPublicPaymentSettings = async (
     res.json({
       success: true,
       data: {
+        transferChannels: settings.transferChannels,
         bank: settings.bank,
         mercadopagoEnabled: settings.mercadopagoEnabled,
         paypalEnabled: settings.paypalEnabled,
+        bankEnabled: settings.bankEnabled,
+        prexEnabled: settings.prexEnabled,
         transferEnabled: settings.transferEnabled,
         whatsappPhone: settings.whatsappPhone,
         subscription: settings.subscription,
@@ -75,7 +109,8 @@ const sanitizeNumber = (value: unknown): number | undefined => {
 
 /**
  * PUT /payment-settings (admin)
- * Actualiza los datos bancarios, toggles y precios del abono.
+ * Actualiza los datos de cada canal de transferencia, los toggles y los
+ * precios del abono.
  */
 export const updatePaymentSettings = async (
   req: Request,
@@ -84,6 +119,17 @@ export const updatePaymentSettings = async (
   try {
     const body = req.body || {};
     const update: any = {};
+
+    if (body.transferChannels && typeof body.transferChannels === "object") {
+      const channels: Record<string, any> = {};
+      for (const key of TRANSFER_CHANNELS) {
+        const sanitized = sanitizeChannel(body.transferChannels[key]);
+        if (sanitized) channels[key] = sanitized;
+      }
+      if (Object.keys(channels).length > 0) {
+        update.transferChannels = channels;
+      }
+    }
 
     if (body.bank && typeof body.bank === "object") {
       update.bank = {
@@ -100,6 +146,10 @@ export const updatePaymentSettings = async (
       update.mercadopagoEnabled = body.mercadopagoEnabled;
     if (typeof body.paypalEnabled === "boolean")
       update.paypalEnabled = body.paypalEnabled;
+    if (typeof body.bankEnabled === "boolean")
+      update.bankEnabled = body.bankEnabled;
+    if (typeof body.prexEnabled === "boolean")
+      update.prexEnabled = body.prexEnabled;
     if (typeof body.transferEnabled === "boolean")
       update.transferEnabled = body.transferEnabled;
     if (typeof body.whatsappPhone === "string")
