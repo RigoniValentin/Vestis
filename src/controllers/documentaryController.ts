@@ -5,6 +5,7 @@ import {
   DocumentaryPurchaseModel,
   IDocumentaryPurchase,
 } from "@models/DocumentaryPurchase";
+import { UserModel } from "@models/Users";
 import { compressAndSave } from "@middlewares/uploadWithCompression";
 
 export const DEFAULT_SLUG = "humano-existes";
@@ -29,6 +30,8 @@ export const isAdminUser = (req: Request): boolean => {
 
 /**
  * Verifica que el usuario actual ha pagado el documental.
+ * También devuelve true si el usuario tiene una suscripción activa,
+ * ya que el abono incluye el acceso al documental.
  */
 export const userOwnsDocumentary = async (
   userId: string,
@@ -39,7 +42,17 @@ export const userOwnsDocumentary = async (
     documentarySlug: slug,
     status: "approved",
   }).lean();
-  return !!purchase;
+  if (purchase) return true;
+
+  const user = await UserModel.findById(userId).lean();
+  if (
+    user?.subscription?.expirationDate &&
+    new Date(user.subscription.expirationDate) > new Date()
+  ) {
+    return true;
+  }
+
+  return false;
 };
 
 /**
