@@ -9,6 +9,7 @@ import {
   getPaymentSettings,
   getSubscriptionDurationDays,
 } from "@models/PaymentSettings";
+import { resetDocumentaryPlayCounter } from "../controllers/documentaryController";
 
 export type PaypalCaptureKind = "subscription" | "order" | "documentary";
 
@@ -176,6 +177,15 @@ export async function applySubscriptionCapture(
   };
 
   await user.save();
+
+  // La suscripción otorga acceso al documental. Resetea el contador de
+  // reproducciones para TODOS los slugs existentes (hoy hay uno, pero
+  // mantenemos la lógica genérica).
+  const allSlugs = await DocumentaryModel.find({}, { slug: 1 }).lean();
+  await Promise.all(
+    allSlugs.map((d) => resetDocumentaryPlayCounter(userId, d.slug))
+  );
+
   return { alreadyApplied: false, userId: String(user._id) };
 }
 
@@ -262,6 +272,8 @@ export async function applyDocumentaryCapture(
   );
 
   if (updated) {
+    // Pago aprobado: resetea contador de reproducciones.
+    await resetDocumentaryPlayCounter(userId, slug);
     return { alreadyApplied: false, purchaseId: String(updated._id) };
   }
 
@@ -276,6 +288,8 @@ export async function applyDocumentaryCapture(
       transactionId,
       paidAt: new Date(),
     });
+    // Pago aprobado: resetea contador de reproducciones.
+    await resetDocumentaryPlayCounter(userId, slug);
     return { alreadyApplied: false, purchaseId: String(created._id) };
   }
 

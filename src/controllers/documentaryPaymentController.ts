@@ -5,7 +5,12 @@ import { HOST, PAYPAL_API, PAYPAL_API_CLIENT, PAYPAL_API_SECRET } from "app";
 import { DocumentaryModel } from "@models/Documentary";
 import { DocumentaryPurchaseModel } from "@models/DocumentaryPurchase";
 import { applyDocumentaryCapture as applyDocumentaryCaptureShared } from "@services/paypalCaptureService";
-import { DEFAULT_SLUG, normalizeSlug, userOwnsDocumentary } from "./documentaryController";
+import {
+  DEFAULT_SLUG,
+  normalizeSlug,
+  resetDocumentaryPlayCounter,
+  userCanPlayDocumentary,
+} from "./documentaryController";
 
 const MP_ACCESS_TOKEN_ENV =
   process.env.NODE_ENV === "production"
@@ -37,8 +42,22 @@ export const createDocumentaryMpPreference = async (
       res.status(400).json({ message: "MercadoPago no habilitado" });
       return;
     }
-    if (await userOwnsDocumentary(userId, slug)) {
-      res.status(400).json({ message: "Ya posees este documental" });
+    // Bloqueamos la compra solo si el usuario todavía tiene reproducciones
+    // disponibles. Si ya agotó las 4, puede volver a pagar para resetear.
+    const { owns, canPlay, state } = await userCanPlayDocumentary(
+      userId,
+      slug,
+      false,
+      !!doc.freeAccess
+    );
+    if (!doc.freeAccess && owns && canPlay) {
+      res.status(400).json({
+        message:
+          `Aún te quedan ${state.playsRemaining} de ${state.playLimit} reproducciones. ` +
+          `Disfrutalas antes de volver a adquirir el documental.`,
+        code: "PLAYS_REMAINING",
+        data: state,
+      });
       return;
     }
 
@@ -185,6 +204,10 @@ export const captureDocumentaryMpPreference = async (
       });
     }
 
+    // Pago aprobado: resetea el contador de reproducciones para que el
+    // usuario vuelva a tener PLAY_LIMIT_PER_GRANT plays disponibles.
+    await resetDocumentaryPlayCounter(userId, slug);
+
     res.json({ success: true });
   } catch (error) {
     console.error("captureDocumentaryMpPreference error:", error);
@@ -212,8 +235,22 @@ export const createDocumentaryPaypalOrder = async (
       res.status(400).json({ message: "PayPal no habilitado" });
       return;
     }
-    if (await userOwnsDocumentary(userId, slug)) {
-      res.status(400).json({ message: "Ya posees este documental" });
+    // Bloqueamos la compra solo si el usuario todavía tiene reproducciones
+    // disponibles. Si ya agotó las 4, puede volver a pagar para resetear.
+    const { owns, canPlay, state } = await userCanPlayDocumentary(
+      userId,
+      slug,
+      false,
+      !!doc.freeAccess
+    );
+    if (!doc.freeAccess && owns && canPlay) {
+      res.status(400).json({
+        message:
+          `Aún te quedan ${state.playsRemaining} de ${state.playLimit} reproducciones. ` +
+          `Disfrutalas antes de volver a adquirir el documental.`,
+        code: "PLAYS_REMAINING",
+        data: state,
+      });
       return;
     }
 

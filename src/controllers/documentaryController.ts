@@ -5,10 +5,26 @@ import {
   DocumentaryPurchaseModel,
   IDocumentaryPurchase,
 } from "@models/DocumentaryPurchase";
+import {
+  DocumentaryPlayCounterModel,
+  IDocumentaryPlayCounter,
+} from "@models/DocumentaryPlayCounter";
 import { UserModel } from "@models/Users";
 import { compressAndSave } from "@middlewares/uploadWithCompression";
 
 export const DEFAULT_SLUG = "humano-existes";
+
+/**
+ * Límite de reproducciones concedidas cada vez que el usuario obtiene
+ * acceso al documental (compra aprobada, suscripción renovada o admin grant).
+ */
+export const PLAY_LIMIT_PER_GRANT = 4;
+
+export interface DocumentaryPlayState {
+  playsUsed: number;
+  playsRemaining: number;
+  playLimit: number;
+}
 
 export const normalizeSlug = (value: unknown, fallback: string): string => {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -32,6 +48,10 @@ export const isAdminUser = (req: Request): boolean => {
  * Verifica que el usuario actual ha pagado el documental.
  * También devuelve true si el usuario tiene una suscripción activa,
  * ya que el abono incluye el acceso al documental.
+ *
+ * Esta función NO contempla el límite de reproducciones:
+ * un usuario puede tener derecho de acceso pero haber agotado sus plays.
+ * Para el chequeo completo usar `userCanPlayDocumentary`.
  */
 export const userOwnsDocumentary = async (
   userId: string,
@@ -53,6 +73,167 @@ export const userOwnsDocumentary = async (
   }
 
   return false;
+};
+
+/**
+ * Lee (o calcula en memoria) el estado del contador de reproducciones
+ * para un (userId, slug). No crea registros: devuelve playsUsed = 0 si
+ * el contador aún no existe.
+ */
+export const getDocumentaryPlayState = async (
+  userId: string,
+  slug: string
+): Promise<DocumentaryPlayState> => {
+  const counter = await DocumentaryPlayCounterModel.findOne({
+    userId,
+    documentarySlug: slug,
+  }).lean();
+  const playsUsed = counter?.playsUsed ?? 0;
+  const playsRemaining = Math.max(0, PLAY_LIMIT_PER_GRANT - playsUsed);
+  return {
+    playsUsed,
+    playsRemaining,
+    playLimit: PLAY_LIMIT_PER_GRANT,
+  };
+};
+
+/**
+ * Resetea el contador de reproducciones a 0. Se invoca cada vez que el
+ * usuario obtiene un nuevo derecho de acceso (compra aprobada, suscripción
+ * renovada o admin grant). Idempotente.
+ */
+export const resetDocumentaryPlayCounter = async (
+  userId: string,
+  slug: string
+): Promise<void> => {
+  await DocumentaryPlayCounterModel.findOneAndUpdate(
+    { userId, documentarySlug: slug },
+    {
+      $set: {
+        playsUsed: 0,
+        lastResetAt: new Date(),
+      },
+      $setOnInsert: {
+        userId,
+        documentarySlug: slug,
+      },
+    },
+    { upsert: true, setDefaultsOnInsert: true }
+  );
+};
+
+export type ConsumeDocumentaryPlayResult =
+  | { ok: true; playsRemaining: number; playsUsed: number }
+  | { ok: false; reason: "limit"; playsUsed: number; playLimit: number };
+
+/**
+ * Consume atómicamente una reproducción del contador.
+ * Devuelve { ok: false, reason: "limit" } si el usuario ya agotó las
+ * PLAY_LIMIT_PER_GRANT reproducciones desde el último reset.
+ *
+ * Atomicidad: usa findOneAndUpdate con filtro `playsUsed < limit` para
+ * evitar carreras con doble click. Si el documento aún no existe, lo crea
+ * con playsUsed = 1 (el primer play cuenta como consumido).
+ */
+export const consumeDocumentaryPlay = async (
+  userId: string,
+  slug: string
+): Promise<ConsumeDocumentaryPlayResult> => {
+  // Intento 1: documento nuevo (primer play del usuario para este slug).
+  try {
+    const created = await DocumentaryPlayCounterModel.create({
+      userId,
+      documentarySlug: slug,
+      playsUsed: 1,
+      lastPlayAt: new Date(),
+      lastResetAt: new Date(),
+    } as unknown as Partial<IDocumentaryPlayCounter>);
+    return {
+      ok: true,
+      playsRemaining: Math.max(0, PLAY_LIMIT_PER_GRANT - created.playsUsed),
+      playsUsed: created.playsUsed,
+    };
+  } catch (err: any) {
+    // Si choca el índice único es porque otro request creó el doc primero.
+    if (err?.code !== 11000) throw err;
+  }
+
+  // Intento 2: documento existente. Incremento solo si aún hay saldo.
+  const updated = await DocumentaryPlayCounterModel.findOneAndUpdate(
+    { userId, documentarySlug: slug, playsUsed: { $lt: PLAY_LIMIT_PER_GRANT } },
+    {
+      $inc: { playsUsed: 1 },
+      $set: { lastPlayAt: new Date() },
+    },
+    { new: true }
+  );
+
+  if (!updated) {
+    const current = await DocumentaryPlayCounterModel
+      .findOne({ userId, documentarySlug: slug })
+      .lean();
+    return {
+      ok: false,
+      reason: "limit",
+      playsUsed: current?.playsUsed ?? PLAY_LIMIT_PER_GRANT,
+      playLimit: PLAY_LIMIT_PER_GRANT,
+    };
+  }
+
+  return {
+    ok: true,
+    playsRemaining: Math.max(0, PLAY_LIMIT_PER_GRANT - updated.playsUsed),
+    playsUsed: updated.playsUsed,
+  };
+};
+
+/**
+ * Determina si el usuario puede reproducir el documental ahora mismo,
+ * considerando derecho de acceso Y saldo de reproducciones.
+ * - Admin y freeAccess siempre pueden.
+ * - Usuarios con compra aprobada o suscripción activa necesitan plays restantes.
+ */
+export const userCanPlayDocumentary = async (
+  userId: string,
+  slug: string,
+  isAdmin: boolean,
+  freeAccess: boolean
+): Promise<{
+  owns: boolean;
+  canPlay: boolean;
+  state: DocumentaryPlayState;
+}> => {
+  if (isAdmin || freeAccess) {
+    return {
+      owns: true,
+      canPlay: true,
+      state: {
+        playsUsed: 0,
+        playsRemaining: PLAY_LIMIT_PER_GRANT,
+        playLimit: PLAY_LIMIT_PER_GRANT,
+      },
+    };
+  }
+
+  const owns = await userOwnsDocumentary(userId, slug);
+  if (!owns) {
+    return {
+      owns: false,
+      canPlay: false,
+      state: {
+        playsUsed: 0,
+        playsRemaining: 0,
+        playLimit: PLAY_LIMIT_PER_GRANT,
+      },
+    };
+  }
+
+  const state = await getDocumentaryPlayState(userId, slug);
+  return {
+    owns: true,
+    canPlay: state.playsRemaining > 0,
+    state,
+  };
 };
 
 /**
@@ -90,6 +271,10 @@ export const getDocumentaryPublic = async (
  * GET /documentaries/:slug/playback
  * Solo accesible si el usuario ha pagado o es admin (o freeAccess está activo).
  * Devuelve el youtubeVideoId para que el reproductor pueda inicializarse.
+ *
+ * Esta llamada CONSUME una reproducción del contador del usuario (siempre que
+ * no sea admin ni freeAccess). El frontend debe invocarla únicamente cuando
+ * el usuario efectivamente inicia la reproducción (p. ej. botón "Ver ahora").
  */
 export const getDocumentaryPlayback = async (
   req: Request,
@@ -119,6 +304,30 @@ export const getDocumentaryPlayback = async (
       return;
     }
 
+    // Admin y freeAccess: sin consumir play.
+    let playsRemaining = PLAY_LIMIT_PER_GRANT;
+    let playsUsed = 0;
+    if (!isAdmin && !doc.freeAccess) {
+      const result = await consumeDocumentaryPlay(userId, slug);
+      if (!result.ok) {
+        res.status(403).json({
+          success: false,
+          code: "PLAY_LIMIT_REACHED",
+          message:
+            "Alcanzaste el límite de reproducciones incluidas. " +
+            "Adquiere nuevamente el documental para volver a verlo.",
+          data: {
+            playsUsed: result.playsUsed,
+            playLimit: result.playLimit,
+            playsRemaining: 0,
+          },
+        });
+        return;
+      }
+      playsRemaining = result.playsRemaining;
+      playsUsed = result.playsUsed;
+    }
+
     res.set("Cache-Control", "no-store");
     res.json({
       success: true,
@@ -127,6 +336,9 @@ export const getDocumentaryPlayback = async (
         title: doc.title,
         youtubeVideoId: doc.youtubeVideoId,
         durationSeconds: doc.durationSeconds,
+        playsUsed,
+        playsRemaining,
+        playLimit: PLAY_LIMIT_PER_GRANT,
       },
     });
   } catch (error) {
@@ -137,7 +349,8 @@ export const getDocumentaryPlayback = async (
 
 /**
  * GET /documentaries/:slug/ownership
- * Devuelve si el usuario tiene acceso (sin exponer el videoId).
+ * Devuelve si el usuario tiene acceso (sin exponer el videoId) junto con
+ * el estado del contador de reproducciones.
  */
 export const getOwnership = async (
   req: Request,
@@ -152,8 +365,23 @@ export const getOwnership = async (
     }
     const userId = (req as any).currentUser?.id;
     const isAdmin = isAdminUser(req);
-    const owns = doc.freeAccess || isAdmin || (await userOwnsDocumentary(userId, slug));
-    res.json({ success: true, data: { owns, isAdmin } });
+    const { owns, canPlay, state } = await userCanPlayDocumentary(
+      userId,
+      slug,
+      isAdmin,
+      !!doc.freeAccess
+    );
+    res.json({
+      success: true,
+      data: {
+        owns,
+        isAdmin,
+        canPlay,
+        playsUsed: state.playsUsed,
+        playsRemaining: state.playsRemaining,
+        playLimit: state.playLimit,
+      },
+    });
   } catch (error) {
     console.error("getOwnership error:", error);
     res.status(500).json({ success: false, message: "Error interno" });
@@ -295,6 +523,9 @@ export const grantAccess = async (
       paidAt: new Date(),
     };
     const created = await DocumentaryPurchaseModel.create(purchase);
+    // Admin grant: resetea contador de reproducciones para que el usuario
+    // empiece con 4 plays disponibles.
+    await resetDocumentaryPlayCounter(userId, slug);
     res.json({ success: true, data: created });
   } catch (error) {
     console.error("grantAccess error:", error);
@@ -305,6 +536,9 @@ export const grantAccess = async (
 /**
  * DELETE /documentaries/:slug/purchases/:id
  * Revoca acceso (admin).
+ * Al revocar también reseteamos el contador para que, si el admin vuelve a
+ * habilitar el acceso más tarde, el contador no tenga plays fantasma
+ * consumidos.
  */
 export const revokeAccess = async (
   req: Request,
@@ -312,9 +546,15 @@ export const revokeAccess = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    await DocumentaryPurchaseModel.findByIdAndUpdate(id, {
+    const purchase = await DocumentaryPurchaseModel.findByIdAndUpdate(id, {
       status: "refunded",
     });
+    if (purchase) {
+      await resetDocumentaryPlayCounter(
+        String(purchase.userId),
+        purchase.documentarySlug
+      );
+    }
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, message: "Error interno" });

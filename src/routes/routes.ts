@@ -54,6 +54,7 @@ import categoryRoutes from "./categoryRoutes";
 import productRoutes from "./productRoutes";
 import eventRoutes from "./eventRoutes";
 import noticeRoutes from "./noticeRoutes";
+import socialLinkRoutes from "./socialLinkRoutes";
 import designRoutes from "./designRoutes";
 import collectionRoutes from "./collectionRoutes";
 import tshirtTypeRoutes from "./tshirtTypeRoutes";
@@ -331,6 +332,11 @@ export default () => {
   // #region Notices Routes
   // Rutas de avisos importantes
   router.use("/notices", noticeRoutes);
+  // #endregion
+
+  // #region Social Links Routes
+  // Redes sociales del footer (público para listar activas, admin para CRUD)
+  router.use("/social-links", socialLinkRoutes);
   // #endregion
 
   return router;

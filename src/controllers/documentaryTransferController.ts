@@ -4,7 +4,12 @@ import path from "path";
 import { DocumentaryModel } from "@models/Documentary";
 import { DocumentaryPurchaseModel } from "@models/DocumentaryPurchase";
 import { buildReceiptUrl } from "@middlewares/uploadReceipt";
-import { DEFAULT_SLUG, normalizeSlug, userOwnsDocumentary } from "./documentaryController";
+import {
+  DEFAULT_SLUG,
+  normalizeSlug,
+  resetDocumentaryPlayCounter,
+  userCanPlayDocumentary,
+} from "./documentaryController";
 
 /**
  * POST /documentaries/:slug/payment/transfer
@@ -46,11 +51,26 @@ export const uploadDocumentaryReceipt = async (
       return;
     }
 
-    if (await userOwnsDocumentary(userId, slug)) {
+    // Bloqueamos la compra solo si el usuario todavía tiene reproducciones
+    // disponibles. Si ya agotó las 4, puede volver a pagar para resetear.
+    const { owns, canPlay, state } = await userCanPlayDocumentary(
+      userId,
+      slug,
+      false,
+      !!doc.freeAccess
+    );
+    if (!doc.freeAccess && owns && canPlay) {
       try {
         await fs.unlink(file.path);
       } catch {}
-      res.status(400).json({ success: false, message: "Ya posees este documental" });
+      res.status(400).json({
+        success: false,
+        code: "PLAYS_REMAINING",
+        message:
+          `Aún te quedan ${state.playsRemaining} de ${state.playLimit} reproducciones. ` +
+          `Disfrutalas antes de volver a adquirir el documental.`,
+        data: state,
+      });
       return;
     }
 
@@ -142,11 +162,26 @@ export const uploadDocumentaryPrexReceipt = async (
       return;
     }
 
-    if (await userOwnsDocumentary(userId, slug)) {
+    // Bloqueamos la compra solo si el usuario todavía tiene reproducciones
+    // disponibles. Si ya agotó las 4, puede volver a pagar para resetear.
+    const { owns, canPlay, state } = await userCanPlayDocumentary(
+      userId,
+      slug,
+      false,
+      !!doc.freeAccess
+    );
+    if (!doc.freeAccess && owns && canPlay) {
       try {
         await fs.unlink(file.path);
       } catch {}
-      res.status(400).json({ success: false, message: "Ya posees este documental" });
+      res.status(400).json({
+        success: false,
+        code: "PLAYS_REMAINING",
+        message:
+          `Aún te quedan ${state.playsRemaining} de ${state.playLimit} reproducciones. ` +
+          `Disfrutalas antes de volver a adquirir el documental.`,
+        data: state,
+      });
       return;
     }
 
@@ -243,6 +278,11 @@ export const approveDocumentaryPurchase = async (
     if (req.body?.adminNotes)
       purchase.adminNotes = String(req.body.adminNotes);
     await purchase.save();
+    // Compra aprobada: resetea contador de reproducciones.
+    await resetDocumentaryPlayCounter(
+      String(purchase.userId),
+      purchase.documentarySlug
+    );
     res.json({ success: true, data: purchase });
   } catch (error) {
     console.error("approveDocumentaryPurchase error:", error);
