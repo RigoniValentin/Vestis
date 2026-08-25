@@ -272,9 +272,15 @@ export const getDocumentaryPublic = async (
  * Solo accesible si el usuario ha pagado o es admin (o freeAccess está activo).
  * Devuelve el youtubeVideoId para que el reproductor pueda inicializarse.
  *
- * Esta llamada CONSUME una reproducción del contador del usuario (siempre que
- * no sea admin ni freeAccess). El frontend debe invocarla únicamente cuando
- * el usuario efectivamente inicia la reproducción (p. ej. botón "Ver ahora").
+ * Por defecto esta llamada CONSUME una reproducción del contador del usuario
+ * (siempre que no sea admin ni freeAccess).
+ *
+ * Soporta el query param `consume=false` para inicializar el reproductor SIN
+ * consumir el crédito. Esto permite que el frontend cargue el player cuando
+ * el usuario llega a la sala, y registre la reproducción recién cuando el
+ * video efectivamente pasa a PLAYING. Si entre la carga y la reproducción el
+ * usuario cierra la pestaña, navega afuera o el video falla en arrancar, no
+ * se descuenta ninguna reproducción.
  */
 export const getDocumentaryPlayback = async (
   req: Request,
@@ -304,28 +310,59 @@ export const getDocumentaryPlayback = async (
       return;
     }
 
+    // Default: consume=true (compatibilidad hacia atrás). Con consume=false
+    // sólo devolvemos el videoId y el estado actual del contador.
+    const consumeRaw = req.query.consume;
+    const shouldConsume =
+      consumeRaw === undefined
+        ? true
+        : String(consumeRaw).toLowerCase() !== "false";
+
     // Admin y freeAccess: sin consumir play.
     let playsRemaining = PLAY_LIMIT_PER_GRANT;
     let playsUsed = 0;
     if (!isAdmin && !doc.freeAccess) {
-      const result = await consumeDocumentaryPlay(userId, slug);
-      if (!result.ok) {
-        res.status(403).json({
-          success: false,
-          code: "PLAY_LIMIT_REACHED",
-          message:
-            "Alcanzaste el límite de reproducciones incluidas. " +
-            "Adquiere nuevamente el documental para volver a verlo.",
-          data: {
-            playsUsed: result.playsUsed,
-            playLimit: result.playLimit,
-            playsRemaining: 0,
-          },
-        });
-        return;
+      if (shouldConsume) {
+        const result = await consumeDocumentaryPlay(userId, slug);
+        if (!result.ok) {
+          res.status(403).json({
+            success: false,
+            code: "PLAY_LIMIT_REACHED",
+            message:
+              "Alcanzaste el límite de reproducciones incluidas. " +
+              "Adquiere nuevamente el documental para volver a verlo.",
+            data: {
+              playsUsed: result.playsUsed,
+              playLimit: result.playLimit,
+              playsRemaining: 0,
+            },
+          });
+          return;
+        }
+        playsRemaining = result.playsRemaining;
+        playsUsed = result.playsUsed;
+      } else {
+        const state = await getDocumentaryPlayState(userId, slug);
+        playsRemaining = state.playsRemaining;
+        playsUsed = state.playsUsed;
+        // Si no quedan reproducciones, bloqueamos acá también para no
+        // devolver un videoId que no podría reproducirse.
+        if (playsRemaining <= 0) {
+          res.status(403).json({
+            success: false,
+            code: "PLAY_LIMIT_REACHED",
+            message:
+              "Alcanzaste el límite de reproducciones incluidas. " +
+              "Adquiere nuevamente el documental para volver a verlo.",
+            data: {
+              playsUsed,
+              playLimit: PLAY_LIMIT_PER_GRANT,
+              playsRemaining: 0,
+            },
+          });
+          return;
+        }
       }
-      playsRemaining = result.playsRemaining;
-      playsUsed = result.playsUsed;
     }
 
     res.set("Cache-Control", "no-store");
