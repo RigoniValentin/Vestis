@@ -123,6 +123,122 @@ export const uploadDocumentaryReceipt = async (
 };
 
 /**
+ * POST /documentaries/:slug/payment/coupon
+ * multipart/form-data: coupon (archivo - imagen del cupón)
+ *
+ * El usuario adjunta una foto del cupón. El admin la valida manualmente
+ * desde el panel de gestión de pagos (mismo flujo que transfer/prex).
+ */
+export const uploadDocumentaryCoupon = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = (req as any).currentUser?.id;
+    const slug = normalizeSlug(req.params.slug, DEFAULT_SLUG);
+    const file = req.file;
+    const { referenceNumber } = req.body || {};
+
+    if (!file) {
+      res
+        .status(400)
+        .json({ success: false, message: "Imagen del cupón requerida" });
+      return;
+    }
+
+    const doc = await DocumentaryModel.findOne({ slug }).lean();
+    if (!doc) {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res
+        .status(404)
+        .json({ success: false, message: "Documental no encontrado" });
+      return;
+    }
+
+    // Bloqueamos la carga solo si el usuario todavía tiene reproducciones
+    // disponibles. Si ya agotó las 4, puede volver a canjear para resetear.
+    const { owns, canPlay, state } = await userCanPlayDocumentary(
+      userId,
+      slug,
+      false,
+      !!doc.freeAccess
+    );
+    if (!doc.freeAccess && owns && canPlay) {
+      try {
+        await fs.unlink(file.path);
+      } catch {}
+      res.status(400).json({
+        success: false,
+        code: "PLAYS_REMAINING",
+        message:
+          `Aún te quedan ${state.playsRemaining} de ${state.playLimit} reproducciones. ` +
+          `Disfrutalas antes de canjear otro cupón.`,
+        data: state,
+      });
+      return;
+    }
+
+    // Si ya tiene un cupón pendiente / rechazado, reemplazar.
+    const existing = await DocumentaryPurchaseModel.findOne({
+      userId,
+      documentarySlug: slug,
+      method: "coupon",
+      status: { $in: ["pending", "awaiting_review", "rejected"] },
+    });
+
+    if (existing) {
+      if (existing.couponReceiptUrl) {
+        try {
+          await fs.unlink(
+            path.join(process.cwd(), existing.couponReceiptUrl)
+          );
+        } catch {}
+      }
+      existing.method = "coupon";
+      existing.amount = 0;
+      existing.currency = doc.currency || "ARS";
+      existing.status = "awaiting_review";
+      existing.couponReferenceNumber =
+        referenceNumber && String(referenceNumber).trim()
+          ? String(referenceNumber).trim()
+          : undefined;
+      existing.couponReceiptUrl = buildReceiptUrl(file.filename);
+      // Limpiamos cualquier comprobante de otro canal para no dejar
+      // archivos "huérfanos" en la DB.
+      existing.transferReceiptUrl = undefined;
+      existing.prexReceiptUrl = undefined;
+      existing.adminNotes = undefined;
+      await existing.save();
+      res.json({ success: true, data: existing });
+      return;
+    }
+
+    const purchase = await DocumentaryPurchaseModel.create({
+      userId,
+      documentarySlug: slug,
+      method: "coupon",
+      amount: 0,
+      currency: doc.currency || "ARS",
+      status: "awaiting_review",
+      couponReferenceNumber:
+        referenceNumber && String(referenceNumber).trim()
+          ? String(referenceNumber).trim()
+          : undefined,
+      couponReceiptUrl: buildReceiptUrl(file.filename),
+    });
+
+    res.json({ success: true, data: purchase });
+  } catch (error: any) {
+    console.error("uploadDocumentaryCoupon error:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Error al subir el cupón" });
+  }
+};
+
+/**
  * POST /documentaries/:slug/payment/prex
  * Mismo flujo que la transferencia bancaria, pero el comprobante va al
  * canal PREX. El admin valida y aprueba / rechaza desde el panel.

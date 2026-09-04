@@ -22,6 +22,7 @@ import {
 import {
   uploadDocumentaryReceipt,
   uploadDocumentaryPrexReceipt,
+  uploadDocumentaryCoupon,
   listAllDocumentaryPurchases,
   approveDocumentaryPurchase,
   rejectDocumentaryPurchase,
@@ -107,6 +108,23 @@ router.post(
     });
   },
   uploadDocumentaryPrexReceipt
+);
+// Cupón: el usuario adjunta la imagen del cupón. Sin número de referencia.
+// El admin valida manualmente desde el panel (mismo flujo que transfer/prex).
+router.post(
+  "/:slug/payment/coupon",
+  verifyToken,
+  (req, res, next) => {
+    uploadReceipt(req, res, (err: any) => {
+      if (err) {
+        return res
+          .status(400)
+          .json({ success: false, message: err.message || "Error de subida" });
+      }
+      next();
+    });
+  },
+  uploadDocumentaryCoupon
 );
 
 // Admin

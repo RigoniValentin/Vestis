@@ -35,6 +35,11 @@ export interface IDocumentaryPurchase extends Document {
   prexReferenceNumber?: string;
   prexReceiptUrl?: string;
 
+  // Cupón (canal "coupon"): el usuario adjunta la imagen del cupón
+  // y el admin la valida manualmente.
+  couponReferenceNumber?: string;
+  couponReceiptUrl?: string;
+
   adminNotes?: string;
   reviewedBy?: Types.ObjectId;
   reviewedAt?: Date;
@@ -95,6 +100,9 @@ const DocumentaryPurchaseSchema: Schema = new Schema<IDocumentaryPurchase>(
 
     prexReferenceNumber: { type: String, trim: true },
     prexReceiptUrl: { type: String, trim: true },
+
+    couponReferenceNumber: { type: String, trim: true },
+    couponReceiptUrl: { type: String, trim: true },
 
     adminNotes: { type: String, trim: true, maxlength: 2000 },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
