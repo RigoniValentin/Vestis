@@ -78,7 +78,7 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
  */
 export const getUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const detail = await userService.getUserDetailAdmin(req.params.id);
+    const detail = await userService.getUserDetailAdmin(req.params.id as string);
     if (!detail) {
       res.status(404).json({ success: false, message: "Usuario no encontrado" });
       return;
@@ -160,7 +160,7 @@ export const updateUserAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const target = await ensureTargetUser(res, id);
     if (!target) return;
 
@@ -210,7 +210,7 @@ export const updateUserRolesAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { roles } = req.body || {};
     if (!Array.isArray(roles)) {
       res.status(400).json({
@@ -259,7 +259,7 @@ export const resetUserPasswordAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { password } = req.body || {};
     if (!password || typeof password !== "string" || password.length < 6) {
       res.status(400).json({
@@ -289,7 +289,7 @@ export const setUserSubscriptionAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { paymentDate, expirationDate, transactionId } = req.body || {};
 
     if (!expirationDate) {
@@ -339,7 +339,7 @@ export const cancelUserSubscriptionAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const target = await ensureTargetUser(res, id);
     if (!target) return;
 
@@ -360,7 +360,7 @@ export const softDeleteUserAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const target = await ensureTargetUser(res, id);
     if (!target) return;
 
@@ -391,7 +391,7 @@ export const restoreUserAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const updated = await userService.restoreUser(id);
     if (!updated) {
       res.status(404).json({ success: false, message: "Usuario no encontrado" });
@@ -413,7 +413,7 @@ export const getUserDocumentaryAccess = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const detail = await userService.getUserDetailAdmin(id);
     if (!detail) {
       res.status(404).json({ success: false, message: "Usuario no encontrado" });
@@ -436,7 +436,7 @@ export const grantUserDocumentaryAccessAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const slug = (req.body?.slug as string) || DEFAULT_DOCUMENTARY_SLUG;
 
     const target = await ensureTargetUser(res, id);
@@ -483,7 +483,7 @@ export const revokeUserDocumentaryAccessAdmin = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id, purchaseId } = req.params;
+    const { id, purchaseId } = req.params as { id: string; purchaseId: string };
 
     const purchase = await DocumentaryPurchaseModel.findOneAndUpdate(
       { _id: purchaseId, userId: id },
