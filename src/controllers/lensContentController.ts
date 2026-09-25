@@ -21,6 +21,14 @@ const isAdminUser = (req: Request): boolean => {
   );
 };
 
+const isPremiumUser = (req: Request): boolean => {
+  const user: any = (req as any).currentUser;
+  if (!user) return false;
+  if (isAdminUser(req)) return true;
+  const exp = user.subscription?.expirationDate;
+  return !!exp && new Date(exp) > new Date();
+};
+
 const cleanFile = async (filename?: string) => {
   if (!filename) return;
   try {
@@ -64,6 +72,12 @@ export const listLensContent = async (
   res: Response
 ): Promise<void> => {
   try {
+    if (!isPremiumUser(req)) {
+      res.status(403).json({
+        message: "Necesitás suscripción para ver el contenido de los lentes",
+      });
+      return;
+    }
     const topic = parseTopic(req.query.topic);
     const includeInactive =
       req.query.includeInactive === "true" && isAdminUser(req);

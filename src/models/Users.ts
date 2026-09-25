@@ -75,6 +75,16 @@ const UserSchema: Schema = new Schema<User>(
     // Nuevos campos para recuperación de contraseña
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+
+    // Soft delete: cuando está presente el usuario fue dado de baja
+    // desde el panel admin. No se elimina físicamente para preservar
+    // el historial de pagos, pedidos y comunidad asociados.
+    deletedAt: { type: Date, default: null, index: true },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   { timestamps: true, versionKey: false }
 );

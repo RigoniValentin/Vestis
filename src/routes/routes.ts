@@ -68,6 +68,7 @@ import subscriptionTransferRoutes from "./subscriptionTransferRoutes";
 import communityRoutes from "./communityRoutes";
 import paypalReconcileRoutes from "./paypalReconcileRoutes";
 import paypalWebhookRoutes from "./paypalWebhookRoutes";
+import adminUsersRoutes from "./adminUsersRoutes";
 import {
   applyCoupon,
   cancelPayment,
@@ -318,6 +319,9 @@ export default () => {
 
   // Admin: reconciliación de pagos PayPal no aplicados (capture perdido)
   router.use("/admin", paypalReconcileRoutes);
+
+  // Admin: gestión completa de usuarios (CRUD, suscripción, documental, roles)
+  router.use("/admin/users", adminUsersRoutes);
 
   // Webhooks públicos (sin auth) — debe ir DESPUÉS del verifyToken en otros
   // routes para evitar captura con JWT. PayPal no envía Bearer.

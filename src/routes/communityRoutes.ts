@@ -67,8 +67,8 @@ router.get("/profile", verifyToken, getMyCommunityProfile);
 router.post("/profile/avatar", verifyToken, uploadAvatar, uploadOwnAvatar);
 router.delete("/profile/avatar", verifyToken, removeOwnAvatar);
 
-/* Lens content (Liz publishes standalone content for each lens) */
-router.get("/lens-content", optionalVerifyToken, listLensContent);
+/* Lens content (Liz publishes standalone content for each lens) — premium only */
+router.get("/lens-content", verifyToken, listLensContent);
 router.get("/lens-content/admin", verifyToken, adminListLensContent);
 router.post(
   "/lens-content",
