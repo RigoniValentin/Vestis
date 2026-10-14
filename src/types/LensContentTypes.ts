@@ -2,6 +2,13 @@ import { Document, Types } from "mongoose";
 import { Query, Repository } from "./RepositoryTypes";
 import { QnaTopic } from "@models/CommunityPost";
 
+export interface LensAttachment {
+  url: string;
+  originalName?: string;
+  mimeType?: string;
+  size?: number;
+}
+
 export interface LensContent extends Document {
   topic: QnaTopic;
   title: string;
@@ -9,6 +16,7 @@ export interface LensContent extends Document {
   imageUrl?: string;
   videoUrl?: string;
   link?: { label: string; url: string };
+  attachments?: LensAttachment[];
   isPinned: boolean;
   isActive: boolean;
   author: Types.ObjectId;
@@ -23,6 +31,7 @@ export interface LensContentCreatePayload {
   imageUrl?: string;
   videoUrl?: string;
   link?: { label?: string; url: string };
+  attachments?: LensAttachment[];
   isPinned?: boolean;
   isActive?: boolean;
   author: Types.ObjectId;
@@ -35,6 +44,7 @@ export interface LensContentUpdatePayload {
   imageUrl?: string | null;
   videoUrl?: string | null;
   link?: { label?: string; url: string } | null;
+  attachments?: LensAttachment[] | null;
   isPinned?: boolean;
   isActive?: boolean;
 }

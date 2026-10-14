@@ -4,7 +4,11 @@ import path from "path";
 import { LensContentService } from "@services/lensContentService";
 import { LensContentRepository } from "@repositories/lensContentRepository";
 import { QnaTopic, QNA_TOPICS } from "@models/CommunityPost";
-import { LensContentCreatePayload, LensContentUpdatePayload } from "types/LensContentTypes";
+import {
+  LensAttachment,
+  LensContentCreatePayload,
+  LensContentUpdatePayload,
+} from "types/LensContentTypes";
 import { buildLensContentImageUrl } from "@middlewares/uploadCommunity";
 import {
   emitLensContentCreated,
@@ -48,6 +52,86 @@ const cleanFileByUrl = async (url?: string | null) => {
   } catch {
     /* ignore */
   }
+};
+
+const cleanFiles = async (urls: Array<string | undefined | null>) => {
+  for (const url of urls) {
+    await cleanFileByUrl(url);
+  }
+};
+
+type UploadedFiles = { [field: string]: Express.Multer.File[] } | undefined;
+
+const getUploadedImage = (files: UploadedFiles): Express.Multer.File | undefined =>
+  files?.image?.[0];
+
+const getUploadedAttachments = (
+  files: UploadedFiles
+): Express.Multer.File[] => files?.attachments || [];
+
+const buildAttachmentFromFile = (
+  file: Express.Multer.File
+): LensAttachment => ({
+  url: buildLensContentImageUrl(file.filename),
+  originalName: file.originalname,
+  mimeType: file.mimetype,
+  size: file.size,
+});
+
+const parseAttachmentList = (value: unknown): LensAttachment[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === "object")
+      .map((entry) => ({
+        url: typeof entry.url === "string" ? entry.url : "",
+        originalName:
+          typeof entry.originalName === "string" ? entry.originalName : undefined,
+        mimeType: typeof entry.mimeType === "string" ? entry.mimeType : undefined,
+        size: typeof entry.size === "number" ? entry.size : undefined,
+      }))
+      .filter((entry) => !!entry.url);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parseAttachmentList(parsed);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const parseStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string");
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parseStringList(parsed) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [trimmed];
+  }
+  return [];
+};
+
+const collectRequestFiles = (req: Request): {
+  image: Express.Multer.File | undefined;
+  attachments: Express.Multer.File[];
+} => {
+  const files = req.files as UploadedFiles;
+  return {
+    image: getUploadedImage(files),
+    attachments: getUploadedAttachments(files),
+  };
 };
 
 const parseTopic = (value: unknown): QnaTopic | undefined => {
@@ -111,9 +195,14 @@ export const createLensContent = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  const { image, attachments } = collectRequestFiles(req);
+  const uploadedFiles = [image, ...attachments].filter(
+    (file): file is Express.Multer.File => !!file
+  );
+
   try {
     if (!isAdminUser(req)) {
-      if (req.file) await cleanFile(req.file.filename);
+      await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
       res.status(403).json({ message: "Solo Liz puede crear contenido de lentes" });
       return;
     }
@@ -123,12 +212,12 @@ export const createLensContent = async (
     const title = String(req.body?.title || "").trim();
 
     if (!topic) {
-      if (req.file) await cleanFile(req.file.filename);
+      await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
       res.status(400).json({ message: "Eje del lente obligatorio" });
       return;
     }
     if (!title) {
-      if (req.file) await cleanFile(req.file.filename);
+      await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
       res.status(400).json({ message: "Título obligatorio" });
       return;
     }
@@ -145,9 +234,10 @@ export const createLensContent = async (
       topic,
       title,
       body: req.body?.body ? String(req.body.body) : undefined,
-      imageUrl: req.file ? buildLensContentImageUrl(req.file.filename) : undefined,
+      imageUrl: image ? buildLensContentImageUrl(image.filename) : undefined,
       videoUrl: req.body?.videoUrl ? String(req.body.videoUrl) : undefined,
       link: linkPayload,
+      attachments: attachments.map(buildAttachmentFromFile),
       isPinned: req.body?.isPinned === "true" || req.body?.isPinned === true,
       isActive:
         req.body?.isActive === undefined
@@ -162,7 +252,7 @@ export const createLensContent = async (
     res.status(201).json({ success: true, data: populated });
   } catch (error: any) {
     console.error("createLensContent error:", error);
-    if (req.file) await cleanFile(req.file.filename);
+    await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
     res.status(400).json({
       message: error instanceof Error ? error.message : "Error creando contenido",
     });
@@ -173,19 +263,32 @@ export const updateLensContent = async (
   req: Request,
   res: Response
 ): Promise<void> => {
+  const { image, attachments } = collectRequestFiles(req);
+  const uploadedFiles = [image, ...attachments].filter(
+    (file): file is Express.Multer.File => !!file
+  );
+
   try {
     if (!isAdminUser(req)) {
-      if (req.file) await cleanFile(req.file.filename);
+      await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
       res.status(403).json({ message: "Solo admin" });
       return;
     }
     const id = req.params.id as string;
     const existing = await lensContentService.findById(id);
     if (!existing) {
-      if (req.file) await cleanFile(req.file.filename);
+      await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
       res.status(404).json({ message: "Contenido no encontrado" });
       return;
     }
+
+    const existingAttachments = existing.attachments || [];
+    const removedAttachmentUrls = parseStringList(
+      req.body?.removedAttachmentUrls
+    );
+    const keepAttachments = existingAttachments.filter(
+      (att) => !removedAttachmentUrls.includes(att.url)
+    );
 
     const payload: LensContentUpdatePayload = {};
 
@@ -224,14 +327,33 @@ export const updateLensContent = async (
         req.body.isActive === "true" || req.body.isActive === true;
     }
 
+    const newAttachmentEntries = attachments.map(buildAttachmentFromFile);
+    const finalAttachments = [...keepAttachments, ...newAttachmentEntries];
+
     const updated = await lensContentService.updateContent(id, payload);
 
     let finalDoc = updated;
-    if (req.file) {
-      await cleanFileByUrl(existing.imageUrl);
+    const imageReplacements: string[] = [];
+
+    if (removedAttachmentUrls.length > 0) {
+      imageReplacements.push(...removedAttachmentUrls);
+    }
+
+    if (image) {
+      imageReplacements.push(existing.imageUrl || "");
       finalDoc = await lensContentService.updateContent(id, {
-        imageUrl: buildLensContentImageUrl(req.file.filename),
+        imageUrl: buildLensContentImageUrl(image.filename),
       });
+    }
+
+    if (newAttachmentEntries.length > 0 || removedAttachmentUrls.length > 0) {
+      finalDoc = await lensContentService.updateContent(id, {
+        attachments: finalAttachments,
+      });
+    }
+
+    if (imageReplacements.length > 0) {
+      await cleanFiles(imageReplacements);
     }
 
     const populated = await populateAuthor(finalDoc || updated);
@@ -239,7 +361,7 @@ export const updateLensContent = async (
     res.json({ success: true, data: populated || updated });
   } catch (error: any) {
     console.error("updateLensContent error:", error);
-    if (req.file) await cleanFile(req.file.filename);
+    await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
     res.status(400).json({
       message: error instanceof Error ? error.message : "Error actualizando",
     });
@@ -261,7 +383,11 @@ export const deleteLensContent = async (
       res.status(404).json({ message: "Contenido no encontrado" });
       return;
     }
-    await cleanFileByUrl(existing.imageUrl);
+    const urlsToClean = [
+      existing.imageUrl,
+      ...(existing.attachments || []).map((att) => att.url),
+    ];
+    await cleanFiles(urlsToClean);
     const ok = await lensContentService.deleteContent(id);
     if (ok) emitLensContentDeleted(id);
     res.json({ success: ok });

@@ -13,6 +13,15 @@ const ALLOWED_MIME_TYPES = [
 const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
+// Adjuntos del lente: imágenes + PDF
+const ATTACHMENT_ALLOWED_MIME_TYPES = [
+  ...ALLOWED_MIME_TYPES,
+  "application/pdf",
+];
+const ATTACHMENT_ALLOWED_EXTENSIONS = [...ALLOWED_EXTENSIONS, ".pdf"];
+const ATTACHMENT_MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_ATTACHMENT_FILES = 6;
+
 const buildStorage = (subdir: string, prefix: string) =>
   multer.diskStorage({
     destination: async (
@@ -77,6 +86,48 @@ export const uploadLensContentImage = multer({
   fileFilter,
   limits: { fileSize: MAX_FILE_SIZE, files: 1 },
 }).single("image");
+
+const attachmentFileFilter = (
+  _req: Request,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
+  if (!ATTACHMENT_ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    return cb(
+      new Error(
+        `Tipo de archivo no permitido (${file.mimetype}). Permitidos: imágenes y PDF.`
+      )
+    );
+  }
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (!ATTACHMENT_ALLOWED_EXTENSIONS.includes(ext)) {
+    return cb(new Error(`Extensión no permitida: ${ext}`));
+  }
+  cb(null, true);
+};
+
+/**
+ * Maneja en una sola request la imagen de portada (campo "image")
+ * y los adjuntos opcionales (campo "attachments", hasta
+ * MAX_ATTACHMENT_FILES archivos PDF o imagen).
+ */
+export const uploadLensContentFiles = multer({
+  storage: buildStorage("lens-content", "lens"),
+  fileFilter: (_req, file, cb) => {
+    if (file.fieldname === "image") return fileFilter(_req, file, cb);
+    if (file.fieldname === "attachments") {
+      return attachmentFileFilter(_req, file, cb);
+    }
+    return cb(new Error(`Campo de archivo no soportado: ${file.fieldname}`));
+  },
+  limits: {
+    fileSize: Math.max(MAX_FILE_SIZE, ATTACHMENT_MAX_FILE_SIZE),
+    files: 1 + MAX_ATTACHMENT_FILES,
+  },
+}).fields([
+  { name: "image", maxCount: 1 },
+  { name: "attachments", maxCount: MAX_ATTACHMENT_FILES },
+]);
 
 export const buildAvatarUrl = (filename: string) =>
   `/uploads/avatars/${filename}`;

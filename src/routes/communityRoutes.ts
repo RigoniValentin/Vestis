@@ -3,7 +3,7 @@ import { optionalVerifyToken, verifyToken } from "@middlewares/auth";
 import {
   uploadAvatar,
   uploadCommunityImage,
-  uploadLensContentImage,
+  uploadLensContentFiles,
   uploadMarketImage,
 } from "@middlewares/uploadCommunity";
 import {
@@ -73,13 +73,13 @@ router.get("/lens-content/admin", verifyToken, adminListLensContent);
 router.post(
   "/lens-content",
   verifyToken,
-  uploadLensContentImage,
+  uploadLensContentFiles,
   createLensContent
 );
 router.put(
   "/lens-content/:id",
   verifyToken,
-  uploadLensContentImage,
+  uploadLensContentFiles,
   updateLensContent
 );
 router.delete("/lens-content/:id", verifyToken, deleteLensContent);
