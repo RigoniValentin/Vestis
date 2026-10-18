@@ -7,6 +7,15 @@ export interface IProduct extends Document {
   category: mongoose.Types.ObjectId;
   image: string; // Imagen principal
   images: string[]; // Array de todas las imágenes (máximo 4)
+  /**
+   * Plan de GO CUOTAS elegido por el admin para este producto. Es un
+   * snapshot del plan (count + precio por cuota) que se muestra en la
+   * tienda cuando GO CUOTAS está habilitado globalmente.
+   */
+  goCuotasPlan?: {
+    count: number;
+    pricePerInstallment: number;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +57,10 @@ const ProductSchema: Schema = new Schema(
         message: "Debe tener entre 1 y 4 imágenes máximo",
       },
       required: [true, "Al menos una imagen es requerida"],
+    },
+    goCuotasPlan: {
+      count: { type: Number, min: 1 },
+      pricePerInstallment: { type: Number, min: 0 },
     },
   },
   {

@@ -2,13 +2,25 @@ import {
   ILensContentRepository,
   ILensContentService,
   LensAttachment,
+  LensAudienceFilter,
   LensContent,
   LensContentCreatePayload,
   LensContentUpdatePayload,
+  LensContentVisibility,
 } from "types/LensContentTypes";
 import { QnaTopic, QNA_TOPICS } from "@models/CommunityPost";
 
 const MAX_ATTACHMENT_ENTRIES = 6;
+const ALLOWED_VISIBILITY: LensContentVisibility[] = ["public", "premium"];
+
+const normalizeVisibility = (
+  value: unknown
+): LensContentVisibility | undefined => {
+  if (typeof value !== "string") return undefined;
+  return ALLOWED_VISIBILITY.includes(value as LensContentVisibility)
+    ? (value as LensContentVisibility)
+    : undefined;
+};
 
 export class LensContentService implements ILensContentService {
   private repository: ILensContentRepository;
@@ -85,6 +97,8 @@ export class LensContentService implements ILensContentService {
       );
     }
 
+    const visibility = normalizeVisibility(payload.visibility) ?? "premium";
+
     return this.repository.create({
       topic: payload.topic,
       title,
@@ -97,6 +111,7 @@ export class LensContentService implements ILensContentService {
       attachments,
       isPinned: !!payload.isPinned,
       isActive: payload.isActive !== undefined ? !!payload.isActive : true,
+      visibility,
       author: payload.author,
     } as LensContent);
   }
@@ -159,6 +174,11 @@ export class LensContentService implements ILensContentService {
 
     if (payload.isPinned !== undefined) update.isPinned = !!payload.isPinned;
     if (payload.isActive !== undefined) update.isActive = !!payload.isActive;
+    if (payload.visibility !== undefined) {
+      const next = normalizeVisibility(payload.visibility);
+      if (!next) throw new Error("Visibilidad inválida.");
+      update.visibility = next;
+    }
 
     return this.repository.update(id, update as Partial<LensContent>);
   }
@@ -169,12 +189,19 @@ export class LensContentService implements ILensContentService {
 
   async listContent(
     topic?: QnaTopic,
-    options?: { includeInactive?: boolean }
+    options?: { includeInactive?: boolean; audience?: LensAudienceFilter }
   ): Promise<LensContent[]> {
+    const audience = options?.audience;
     if (topic && QNA_TOPICS.includes(topic)) {
-      return this.repository.findByTopic(topic, !!options?.includeInactive);
+      return this.repository.findByTopic(topic, {
+        includeInactive: !!options?.includeInactive,
+        audience,
+      });
     }
-    return this.repository.find(options?.includeInactive ? {} : { isActive: true });
+    return this.repository.findAllFiltered({
+      includeInactive: !!options?.includeInactive,
+      audience,
+    });
   }
 
   async findById(id: string): Promise<LensContent | null> {

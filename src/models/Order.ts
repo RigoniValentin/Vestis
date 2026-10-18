@@ -79,6 +79,17 @@ export interface IOrder extends Document {
   communityBonusExpirationDate?: Date;
 
   paidAt?: Date;
+
+  /**
+   * Snapshot del plan de GO CUOTAS elegido por el cliente al confirmar
+   * por WhatsApp. Solo se persiste para que Liz lo vea de un vistazo en
+   * la tarjeta del pedido; el cobro se coordina fuera del sistema.
+   */
+  goCuotasPlan?: {
+    count: number;
+    pricePerInstallment: number;
+  };
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -161,6 +172,11 @@ const OrderSchema: Schema = new Schema<IOrder>(
     communityBonusExpirationDate: { type: Date },
 
     paidAt: { type: Date },
+
+    goCuotasPlan: {
+      count: { type: Number, min: 1 },
+      pricePerInstallment: { type: Number, min: 0 },
+    },
   },
   { timestamps: true, versionKey: false }
 );

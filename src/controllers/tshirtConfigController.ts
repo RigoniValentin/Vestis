@@ -2,6 +2,22 @@ import { Request, Response } from "express";
 import TshirtConfig from "../models/TshirtConfig";
 import { deleteConfigImage } from "../middlewares/uploadTshirtConfig";
 
+/**
+ * Sanitiza el plan de GO CUOTAS recibido en el body. Devuelve
+ * `undefined` si no hay plan o si los datos son inválidos.
+ */
+const sanitizeGoCuotasPlan = (raw: any):
+  | { count: number; pricePerInstallment: number }
+  | undefined => {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== "object") return undefined;
+  const count = Number(raw.count);
+  const price = Number(raw.pricePerInstallment);
+  if (!Number.isFinite(count) || count < 1) return undefined;
+  if (!Number.isFinite(price) || price < 0) return undefined;
+  return { count: Math.floor(count), pricePerInstallment: price };
+};
+
 // @desc    Obtener todas las configuraciones
 // @route   GET /api/v1/tshirt-configs
 // @access  Public
@@ -166,6 +182,7 @@ export const createTshirtConfig = async (req: Request, res: Response): Promise<v
       sizes: parsedSizes,
       productImage,
       price: parsedPrice,
+      goCuotasPlan: sanitizeGoCuotasPlan(req.body?.goCuotasPlan),
     });
 
     const populatedConfig = await TshirtConfig.findById(config._id)
@@ -220,6 +237,10 @@ export const updateTshirtConfig = async (req: Request, res: Response): Promise<v
     if (productImage) updateData.productImage = productImage;
     if (parsedPrice !== undefined) updateData.price = parsedPrice;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (req.body?.goCuotasPlan !== undefined) {
+      updateData.goCuotasPlan =
+        sanitizeGoCuotasPlan(req.body.goCuotasPlan) ?? null;
+    }
 
     const config = await TshirtConfig.findByIdAndUpdate(
       req.params.id,

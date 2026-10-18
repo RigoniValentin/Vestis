@@ -1,5 +1,9 @@
 import { Request, Response } from "express";
-import { getPaymentSettings, PaymentSettingsModel } from "@models/PaymentSettings";
+import {
+  getPaymentSettings,
+  PaymentSettingsModel,
+  getGoCuotasConfig,
+} from "@models/PaymentSettings";
 
 /**
  * Lista de canales de transferencia que la app soporta. Mantener este
@@ -44,22 +48,41 @@ export const getPublicPaymentSettings = async (
 ): Promise<void> => {
   try {
     const settings = await getPaymentSettings();
-    res.json({
-      success: true,
-      data: {
-        transferChannels: settings.transferChannels,
-        bank: settings.bank,
-        mercadopagoEnabled: settings.mercadopagoEnabled,
-        paypalEnabled: settings.paypalEnabled,
-        bankEnabled: settings.bankEnabled,
-        prexEnabled: settings.prexEnabled,
-        transferEnabled: settings.transferEnabled,
-        whatsappPhone: settings.whatsappPhone,
-        subscription: settings.subscription,
-      },
-    });
+      res.json({
+        success: true,
+        data: {
+          transferChannels: settings.transferChannels,
+          bank: settings.bank,
+          mercadopagoEnabled: settings.mercadopagoEnabled,
+          paypalEnabled: settings.paypalEnabled,
+          bankEnabled: settings.bankEnabled,
+          prexEnabled: settings.prexEnabled,
+          transferEnabled: settings.transferEnabled,
+          whatsappPhone: settings.whatsappPhone,
+          subscription: settings.subscription,
+          goCuotas: settings.goCuotas,
+        },
+      });
   } catch (error) {
     console.error("getPublicPaymentSettings error:", error);
+    res.status(500).json({ success: false, message: "Error interno" });
+  }
+};
+
+/**
+ * GET /payment-settings/go-cuotas
+ * Endpoint público liviano: solo la configuración de GO CUOTAS
+ * (planes + CTA) para que el catálogo la consuma sin descargar el resto.
+ */
+export const getPublicGoCuotas = async (
+  _req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const goCuotas = await getGoCuotasConfig();
+    res.json({ success: true, data: goCuotas });
+  } catch (error) {
+    console.error("getPublicGoCuotas error:", error);
     res.status(500).json({ success: false, message: "Error interno" });
   }
 };
@@ -175,6 +198,37 @@ export const updatePaymentSettings = async (
         if (fromPriceArs !== undefined) sub.fromPriceArs = fromPriceArs;
       }
       update.subscription = sub;
+    }
+
+    if (body.goCuotas && typeof body.goCuotas === "object") {
+      const gc: any = {};
+      if (typeof body.goCuotas.enabled === "boolean")
+        gc.enabled = body.goCuotas.enabled;
+      if (typeof body.goCuotas.ctaText === "string") {
+        const trimmed = body.goCuotas.ctaText.trim();
+        if (trimmed.length > 0) gc.ctaText = trimmed;
+      }
+      if (Array.isArray(body.goCuotas.plans)) {
+        const plans = body.goCuotas.plans
+          .map((p: any) => {
+            const count = Number(p?.count);
+            const pricePerInstallment = Number(p?.pricePerInstallment);
+            if (!Number.isFinite(count) || count < 1) return null;
+            if (
+              !Number.isFinite(pricePerInstallment) ||
+              pricePerInstallment < 0
+            )
+              return null;
+            return {
+              count: Math.floor(count),
+              pricePerInstallment,
+            };
+          })
+          .filter(Boolean)
+          .sort((a: any, b: any) => a.count - b.count);
+        gc.plans = plans;
+      }
+      update.goCuotas = gc;
     }
 
     const existing = await PaymentSettingsModel.findOne();

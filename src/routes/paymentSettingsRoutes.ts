@@ -4,6 +4,7 @@ import { verifyRole } from "@middlewares/roles";
 import {
   getPublicPaymentSettings,
   getPublicSubscriptionPricing,
+  getPublicGoCuotas,
   getAdminPaymentSettings,
   updatePaymentSettings,
 } from "@controllers/paymentSettingsController";
@@ -15,6 +16,9 @@ router.get("/", getPublicPaymentSettings);
 
 // Público: precios del abono (para que el componente de Suscripciones y banners los lean)
 router.get("/subscription", getPublicSubscriptionPricing);
+
+// Público: planes de GO CUOTAS para que el catálogo los consuma de forma liviana
+router.get("/go-cuotas", getPublicGoCuotas);
 
 // Admin
 router.get(

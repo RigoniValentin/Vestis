@@ -1,7 +1,17 @@
 import { LensContentModel } from "@models/LensContent";
-import { ILensContentRepository, LensContent } from "types/LensContentTypes";
+import {
+  ILensContentRepository,
+  LensAudienceFilter,
+  LensContent,
+} from "types/LensContentTypes";
 import { QnaTopic } from "@models/CommunityPost";
 import { Query } from "types/RepositoryTypes";
+
+const buildAudienceFilter = (audience?: LensAudienceFilter): Record<string, unknown> | null => {
+  if (!audience || audience === "all") return null;
+  if (audience === "public") return { visibility: "public" };
+  return { visibility: "premium" };
+};
 
 export class LensContentRepository implements ILensContentRepository {
   async create(data: LensContent): Promise<LensContent> {
@@ -9,9 +19,28 @@ export class LensContentRepository implements ILensContentRepository {
     return await doc.save();
   }
 
-  async findByTopic(topic: QnaTopic, includeInactive = false): Promise<LensContent[]> {
+  async findByTopic(
+    topic: QnaTopic,
+    options?: { includeInactive?: boolean; audience?: LensAudienceFilter }
+  ): Promise<LensContent[]> {
     const filter: Record<string, unknown> = { topic };
-    if (!includeInactive) filter.isActive = true;
+    if (!options?.includeInactive) filter.isActive = true;
+    const audienceFilter = buildAudienceFilter(options?.audience);
+    if (audienceFilter) Object.assign(filter, audienceFilter);
+    return await LensContentModel.find(filter)
+      .sort({ isPinned: -1, createdAt: -1 })
+      .populate("author", "name username avatarUrl")
+      .exec();
+  }
+
+  async findAllFiltered(options?: {
+    includeInactive?: boolean;
+    audience?: LensAudienceFilter;
+  }): Promise<LensContent[]> {
+    const filter: Record<string, unknown> = {};
+    if (!options?.includeInactive) filter.isActive = true;
+    const audienceFilter = buildAudienceFilter(options?.audience);
+    if (audienceFilter) Object.assign(filter, audienceFilter);
     return await LensContentModel.find(filter)
       .sort({ isPinned: -1, createdAt: -1 })
       .populate("author", "name username avatarUrl")

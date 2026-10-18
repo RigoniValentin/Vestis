@@ -8,6 +8,8 @@ export interface ILensAttachment {
   size?: number;
 }
 
+export type LensContentVisibility = "public" | "premium";
+
 export interface ILensContent extends Document {
   topic: QnaTopic;
   title: string;
@@ -18,6 +20,7 @@ export interface ILensContent extends Document {
   attachments?: ILensAttachment[];
   isPinned: boolean;
   isActive: boolean;
+  visibility: LensContentVisibility;
   author: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +53,13 @@ const LensContentSchema = new Schema<ILensContent>(
     },
     isPinned: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
+    visibility: {
+      type: String,
+      enum: ["public", "premium"],
+      default: "premium",
+      required: true,
+      index: true,
+    },
     author: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
   { timestamps: true, versionKey: false }

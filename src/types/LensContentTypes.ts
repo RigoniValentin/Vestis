@@ -2,6 +2,10 @@ import { Document, Types } from "mongoose";
 import { Query, Repository } from "./RepositoryTypes";
 import { QnaTopic } from "@models/CommunityPost";
 
+export type LensContentVisibility = "public" | "premium";
+
+export type LensAudienceFilter = "public" | "premium" | "all";
+
 export interface LensAttachment {
   url: string;
   originalName?: string;
@@ -19,6 +23,7 @@ export interface LensContent extends Document {
   attachments?: LensAttachment[];
   isPinned: boolean;
   isActive: boolean;
+  visibility: LensContentVisibility;
   author: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +39,7 @@ export interface LensContentCreatePayload {
   attachments?: LensAttachment[];
   isPinned?: boolean;
   isActive?: boolean;
+  visibility?: LensContentVisibility;
   author: Types.ObjectId;
 }
 
@@ -47,10 +53,18 @@ export interface LensContentUpdatePayload {
   attachments?: LensAttachment[] | null;
   isPinned?: boolean;
   isActive?: boolean;
+  visibility?: LensContentVisibility;
 }
 
 export interface ILensContentRepository extends Repository<LensContent> {
-  findByTopic(topic: QnaTopic, includeInactive?: boolean): Promise<LensContent[]>;
+  findByTopic(
+    topic: QnaTopic,
+    options?: { includeInactive?: boolean; audience?: LensAudienceFilter }
+  ): Promise<LensContent[]>;
+  findAllFiltered(options?: {
+    includeInactive?: boolean;
+    audience?: LensAudienceFilter;
+  }): Promise<LensContent[]>;
 }
 
 export interface ILensContentService {
@@ -62,7 +76,7 @@ export interface ILensContentService {
   deleteContent(id: string): Promise<boolean>;
   listContent(
     topic?: QnaTopic,
-    options?: { includeInactive?: boolean }
+    options?: { includeInactive?: boolean; audience?: LensAudienceFilter }
   ): Promise<LensContent[]>;
   findById(id: string): Promise<LensContent | null>;
 }

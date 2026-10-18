@@ -46,6 +46,15 @@ export interface IAccessory extends Document {
     width?: number;
     height?: number;
   };
+  /**
+   * Plan de GO CUOTAS elegido por el admin para este accesorio. Es un
+   * snapshot del plan (count + precio por cuota) que se muestra en la
+   * tienda cuando GO CUOTAS está habilitado globalmente.
+   */
+  goCuotasPlan?: {
+    count: number;
+    pricePerInstallment: number;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -161,6 +170,10 @@ const AccessorySchema: Schema = new Schema(
       length: { type: Number, min: 0 },
       width: { type: Number, min: 0 },
       height: { type: Number, min: 0 },
+    },
+    goCuotasPlan: {
+      count: { type: Number, min: 1 },
+      pricePerInstallment: { type: Number, min: 0 },
     },
   },
   {

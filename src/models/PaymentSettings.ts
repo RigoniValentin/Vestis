@@ -93,6 +93,25 @@ export interface IPaymentSettings extends Document {
     fromPriceArs?: number | null; // Precio "desde" para mostrar en banners (opcional)
   };
 
+  /**
+   * Configuración de GO CUOTAS (financiación propia administrada por el
+   * admin). Se muestra globalmente en el catálogo y no se cobra online:
+   * el cliente termina el pedido por WhatsApp con Liz.
+   *
+   * - `enabled` oculta todo el bloque de cuotas en la web.
+   * - `plans` es la lista de planes disponibles (3, 6, 12 cuotas, etc.).
+   *   El front los ordena por `count` y muestra el más bajo como destacado.
+   * - `ctaText` es la etiqueta visible (default: "GO CUOTAS").
+   */
+  goCuotas: {
+    enabled: boolean;
+    plans: {
+      count: number;
+      pricePerInstallment: number;
+    }[];
+    ctaText: string;
+  };
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -140,6 +159,22 @@ const PaymentSettingsSchema: Schema = new Schema<IPaymentSettings>(
       paypalUsd: { type: Number, default: 13, min: 0 },
       durationDays: { type: Number, default: 30, min: 1 },
       fromPriceArs: { type: Number, default: null },
+    },
+    goCuotas: {
+      enabled: { type: Boolean, default: false },
+      plans: {
+        type: [
+          new Schema(
+            {
+              count: { type: Number, required: true, min: 1 },
+              pricePerInstallment: { type: Number, required: true, min: 0 },
+            },
+            { _id: false }
+          ),
+        ],
+        default: [],
+      },
+      ctaText: { type: String, default: "GO CUOTAS" },
     },
   },
   { timestamps: true, versionKey: false, strict: false }
@@ -268,4 +303,58 @@ export const getSubscriptionDurationDays = async (): Promise<number> => {
     return Math.floor(value);
   }
   return SUBSCRIPTION_FALLBACK_DURATION_DAYS;
+};
+
+/* ─── Helpers compartidos para GO CUOTAS ──────────────────────────────
+ * Configuración global administrada por el admin (liz): define los
+ * planes de financiación que se muestran en el catálogo y, si el cliente
+ * elige uno, se persiste en el pedido al confirmar por WhatsApp.
+ */
+
+export interface IGoCuotasPlan {
+  count: number;
+  pricePerInstallment: number;
+}
+
+export interface IGoCuotasConfig {
+  enabled: boolean;
+  plans: IGoCuotasPlan[];
+  ctaText: string;
+}
+
+const GO_CUOTAS_FALLBACK_CTA = "GO CUOTAS";
+
+/**
+ * Devuelve la configuración de GO CUOTAS con `enabled=false` por defecto
+ * si el documento no tiene el campo. Los planes vienen ordenados por
+ * `count` ascendente y se filtran los inválidos (count < 1 o precio < 0).
+ */
+export const getGoCuotasConfig = async (): Promise<IGoCuotasConfig> => {
+  const settings = await getPaymentSettings();
+  const raw = settings.goCuotas as IGoCuotasConfig | undefined;
+  if (!raw) {
+    return { enabled: false, plans: [], ctaText: GO_CUOTAS_FALLBACK_CTA };
+  }
+  const plans = (Array.isArray(raw.plans) ? raw.plans : [])
+    .filter(
+      (p) =>
+        p &&
+        Number.isFinite(p.count) &&
+        Number.isFinite(p.pricePerInstallment) &&
+        p.count >= 1 &&
+        p.pricePerInstallment >= 0
+    )
+    .map((p) => ({
+      count: Math.floor(p.count),
+      pricePerInstallment: p.pricePerInstallment,
+    }))
+    .sort((a, b) => a.count - b.count);
+  return {
+    enabled: raw.enabled === true,
+    plans,
+    ctaText:
+      typeof raw.ctaText === "string" && raw.ctaText.trim().length > 0
+        ? raw.ctaText.trim()
+        : GO_CUOTAS_FALLBACK_CTA,
+  };
 };

@@ -6,6 +6,7 @@ import { dispatchCommunityWebhook } from "@services/communityWebhookService";
 const COMMUNITY_ROOM = "community";
 const MARKET_ROOM = "community:market";
 const ADMINS_ROOM = "community:admins";
+const PREMIUM_ROOM = "community:premium";
 
 let io: Server | null = null;
 
@@ -17,6 +18,20 @@ const getId = (value: any): string => {
   if (typeof value === "string") return value;
   if (value._id) return String(value._id);
   return String(value);
+};
+
+const isUserPremium = (user: any): boolean => {
+  if (!user) return false;
+  const roles = (user as any).roles;
+  if (Array.isArray(roles) && roles.some((role: any) =>
+    ["admin", "superadmin"].includes(role?.name)
+  )) {
+    return true;
+  }
+  const exp = (user as any).subscription?.expirationDate;
+  if (!exp) return false;
+  const expDate = exp instanceof Date ? exp : new Date(exp);
+  return expDate.getTime() > Date.now();
 };
 
 const emitToRooms = (rooms: string[], event: string, payload: unknown) => {
@@ -55,17 +70,19 @@ const resolveSocketUser = async (socket: Socket) => {
 
   const user = await UserModel.findById(userId)
     .populate("roles")
-    .select("_id name username avatarUrl roles")
+    .select("_id name username avatarUrl roles subscription")
     .lean();
   if (!user) return null;
 
   const isAdmin = !!(user as any).roles?.some((role: any) =>
     ["admin", "superadmin"].includes(role?.name)
   );
+  const isPremium = isUserPremium(user);
 
   return {
     id: String((user as any)._id),
     isAdmin,
+    isPremium,
     name: (user as any).name,
     username: (user as any).username,
     avatarUrl: (user as any).avatarUrl,
@@ -82,6 +99,7 @@ const setupCommunitySocket = async (socket: Socket) => {
       socket.data.communityUser = user;
       socket.join(userRoom(user.id));
       if (user.isAdmin) socket.join(ADMINS_ROOM);
+      if (user.isPremium) socket.join(PREMIUM_ROOM);
     }
   } catch (error: any) {
     socket.emit("community:auth:error", {
@@ -186,20 +204,29 @@ export const emitCommunityWebhookEvent = (event: string, payload: unknown) => {
 
 export const emitLensContentCreated = (item: any) => {
   const payload = { item };
-  const rooms = [COMMUNITY_ROOM];
-  if (item?.topic) rooms.push(topicRoom(String(item.topic)));
+  const rooms = lensContentRoomsForVisibility(item);
   emitToRooms(rooms, "community:lens-content:created", payload);
   emitAdminSummaryStale();
 };
 
 export const emitLensContentUpdated = (item: any, action = "update") => {
   const payload = { item, action };
-  const rooms = [COMMUNITY_ROOM];
-  if (item?.topic) rooms.push(topicRoom(String(item.topic)));
+  const rooms = lensContentRoomsForVisibility(item);
   emitToRooms(rooms, "community:lens-content:updated", payload);
 };
 
 export const emitLensContentDeleted = (itemId: string) => {
   emitToRooms([COMMUNITY_ROOM], "community:lens-content:deleted", { itemId });
   emitAdminSummaryStale();
+};
+
+const lensContentRoomsForVisibility = (item: any): string[] => {
+  if (!item) return [COMMUNITY_ROOM];
+  const visibility = item?.visibility;
+  if (visibility === "premium") {
+    return [PREMIUM_ROOM, ADMINS_ROOM];
+  }
+  const rooms = [COMMUNITY_ROOM];
+  if (item?.topic) rooms.push(topicRoom(String(item.topic)));
+  return rooms;
 };

@@ -17,6 +17,15 @@ export interface ITshirtConfig extends Document {
   productImage: string;                // Imagen real del producto terminado
   price: number;                       // Precio final de esta configuración
   isActive: boolean;
+  /**
+   * Plan de GO CUOTAS elegido por el admin para esta configuración.
+   * Snapshot del plan (count + precio por cuota) que se muestra en la
+   * tienda cuando GO CUOTAS está habilitado globalmente.
+   */
+  goCuotasPlan?: {
+    count: number;
+    pricePerInstallment: number;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,6 +64,10 @@ const TshirtConfigSchema: Schema = new Schema(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    goCuotasPlan: {
+      count: { type: Number, min: 1 },
+      pricePerInstallment: { type: Number, min: 0 },
     },
   },
   {

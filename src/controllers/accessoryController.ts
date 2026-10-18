@@ -2,6 +2,22 @@ import { Request, Response, RequestHandler } from "express";
 import Accessory, { IAccessory, AccessoryType } from "../models/Accessory";
 import { deleteAccessoryImages, deleteAccessoryImage } from "../middlewares/uploadAccessory";
 
+/**
+ * Sanitiza el plan de GO CUOTAS recibido en el body. Devuelve
+ * `undefined` si no hay plan o si los datos son inválidos.
+ */
+const sanitizeGoCuotasPlan = (raw: any):
+  | { count: number; pricePerInstallment: number }
+  | undefined => {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== "object") return undefined;
+  const count = Number(raw.count);
+  const price = Number(raw.pricePerInstallment);
+  if (!Number.isFinite(count) || count < 1) return undefined;
+  if (!Number.isFinite(price) || price < 0) return undefined;
+  return { count: Math.floor(count), pricePerInstallment: price };
+};
+
 // Tipos de accesorios con sus labels para el frontend
 export const ACCESSORY_TYPES: { value: AccessoryType; label: string; icon: string }[] = [
   { value: "colchoneta", label: "Colchoneta", icon: "🧘" },
@@ -228,6 +244,8 @@ export const createAccessory = async (req: Request, res: Response) => {
       weight: weight ? Number(weight) : undefined,
       dimensions: parsedDimensions,
     };
+    const goCuotasPlan = sanitizeGoCuotasPlan(req.body?.goCuotasPlan);
+    if (goCuotasPlan) accessoryData.goCuotasPlan = goCuotasPlan;
 
     const accessory = await Accessory.create(accessoryData);
 
@@ -358,6 +376,13 @@ export const updateAccessory: AsyncRequestHandler = async (req, res) => {
       weight: weight !== undefined ? (weight ? Number(weight) : undefined) : existingAccessory.weight,
       dimensions: parsedDimensions !== undefined ? parsedDimensions : existingAccessory.dimensions,
     };
+
+    // Plan de GO CUOTAS: si viene `null` lo limpiamos; si viene objeto,
+    // lo sanitizamos. Ausencia de campo = no se toca.
+    if (req.body?.goCuotasPlan !== undefined) {
+      const sanitized = sanitizeGoCuotasPlan(req.body.goCuotasPlan);
+      (updateData as any).goCuotasPlan = sanitized ?? undefined;
+    }
 
     // Actualizar imagen principal
     if (updateData.images && updateData.images.length > 0) {

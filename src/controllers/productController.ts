@@ -16,6 +16,22 @@ import uploadMiddleware from "@middlewares/upload";
 const MAX_FILES = uploadMiddleware.MAX_FILES;
 
 // Función auxiliar para logging detallado
+/**
+ * Sanitiza el plan de GO CUOTAS recibido en el body. Devuelve
+ * `undefined` si no hay plan o si los datos son inválidos.
+ */
+const sanitizeGoCuotasPlan = (raw: any):
+  | { count: number; pricePerInstallment: number }
+  | undefined => {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== "object") return undefined;
+  const count = Number(raw.count);
+  const price = Number(raw.pricePerInstallment);
+  if (!Number.isFinite(count) || count < 1) return undefined;
+  if (!Number.isFinite(price) || price < 0) return undefined;
+  return { count: Math.floor(count), pricePerInstallment: price };
+};
+
 const logOperation = (operation: string, details: any) => {
   console.log(
     `🔄 [${new Date().toISOString()}] ${operation}:`,
@@ -293,7 +309,7 @@ export const createProduct = async (
     logOperation("IMAGENES_PROCESADAS", { urls: imageUrls });
 
     // Crear el producto
-    const productData = {
+    const productData: any = {
       name: name.trim(),
       price: Number(price),
       description: description.trim(),
@@ -301,6 +317,8 @@ export const createProduct = async (
       images: imageUrls,
       // image será establecida automáticamente por el middleware del modelo
     };
+    const goCuotasPlan = sanitizeGoCuotasPlan(req.body?.goCuotasPlan);
+    if (goCuotasPlan) productData.goCuotasPlan = goCuotasPlan;
 
     const product = new Product(productData);
     const savedProduct = await product.save();
@@ -405,6 +423,13 @@ export const updateProduct = async (
     }
     if (description !== undefined) product.description = description.trim();
     if (category !== undefined) product.category = category;
+
+    // Plan de GO CUOTAS: si viene `null` lo limpiamos; si viene objeto,
+    // lo sanitizamos. Ausencia de campo = no se toca.
+    if (req.body?.goCuotasPlan !== undefined) {
+      const sanitized = sanitizeGoCuotasPlan(req.body.goCuotasPlan);
+      product.set("goCuotasPlan", sanitized ?? undefined);
+    }
 
     // Función auxiliar para convertir valores a boolean de manera robusta
     const toBooleanSafe = (value: any): boolean => {

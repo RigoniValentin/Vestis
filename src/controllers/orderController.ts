@@ -206,10 +206,12 @@ export const createOrder = async (
       items,
       paymentMethod,
       customer,
+      goCuotasPlan,
     }: {
       items: CreateOrderItemBody[];
       paymentMethod: IOrder["paymentMethod"];
       customer?: IOrder["customer"];
+      goCuotasPlan?: { count: number; pricePerInstallment: number };
     } = req.body || {};
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -279,6 +281,18 @@ export const createOrder = async (
       phone: customer?.phone,
     };
 
+    // Snapshot del plan de GO CUOTAS (opcional). Solo se persiste si
+    // el cliente eligió un plan válido al confirmar el pedido.
+    const planCount = Number(goCuotasPlan?.count);
+    const planPrice = Number(goCuotasPlan?.pricePerInstallment);
+    const finalGoCuotasPlan =
+      Number.isFinite(planCount) &&
+      planCount >= 1 &&
+      Number.isFinite(planPrice) &&
+      planPrice >= 0
+        ? { count: Math.floor(planCount), pricePerInstallment: planPrice }
+        : undefined;
+
     const order = await OrderModel.create({
       userId,
       items: orderItems,
@@ -288,6 +302,7 @@ export const createOrder = async (
       paymentMethod,
       paymentStatus: paymentMethod === "whatsapp" ? "pending" : "pending",
       fulfillmentStatus: "pending",
+      goCuotasPlan: finalGoCuotasPlan,
     });
 
     res.status(201).json({ success: true, data: order });

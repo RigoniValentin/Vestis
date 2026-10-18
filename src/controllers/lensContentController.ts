@@ -6,8 +6,10 @@ import { LensContentRepository } from "@repositories/lensContentRepository";
 import { QnaTopic, QNA_TOPICS } from "@models/CommunityPost";
 import {
   LensAttachment,
+  LensAudienceFilter,
   LensContentCreatePayload,
   LensContentUpdatePayload,
+  LensContentVisibility,
 } from "types/LensContentTypes";
 import { buildLensContentImageUrl } from "@middlewares/uploadCommunity";
 import {
@@ -31,6 +33,33 @@ const isPremiumUser = (req: Request): boolean => {
   if (isAdminUser(req)) return true;
   const exp = user.subscription?.expirationDate;
   return !!exp && new Date(exp) > new Date();
+};
+
+const parseAudienceParam = (raw: unknown): LensAudienceFilter | undefined => {
+  if (typeof raw !== "string") return undefined;
+  if (raw === "public" || raw === "premium" || raw === "all") return raw;
+  return undefined;
+};
+
+const audienceForRequest = (req: Request): LensAudienceFilter => {
+  if (isAdminUser(req)) {
+    const requested = parseAudienceParam(req.query.audience);
+    return requested || "all";
+  }
+  if (isPremiumUser(req)) {
+    const requested = parseAudienceParam(req.query.audience);
+    if (requested === "public") return "public";
+    if (requested === "premium") return "premium";
+    return "all";
+  }
+  return "public";
+};
+
+const parseVisibility = (value: unknown): LensContentVisibility | undefined => {
+  if (value === "public" || value === "premium") return value;
+  if (value === "true" || value === true) return "premium";
+  if (value === "false" || value === false) return "public";
+  return undefined;
 };
 
 const cleanFile = async (filename?: string) => {
@@ -156,16 +185,14 @@ export const listLensContent = async (
   res: Response
 ): Promise<void> => {
   try {
-    if (!isPremiumUser(req)) {
-      res.status(403).json({
-        message: "Necesitás suscripción para ver el contenido de los lentes",
-      });
-      return;
-    }
     const topic = parseTopic(req.query.topic);
     const includeInactive =
       req.query.includeInactive === "true" && isAdminUser(req);
-    const items = await lensContentService.listContent(topic, { includeInactive });
+    const audience = audienceForRequest(req);
+    const items = await lensContentService.listContent(topic, {
+      includeInactive,
+      audience,
+    });
     res.json({ success: true, data: items });
   } catch (error) {
     console.error("listLensContent error:", error);
@@ -243,6 +270,7 @@ export const createLensContent = async (
         req.body?.isActive === undefined
           ? true
           : req.body?.isActive === "true" || req.body?.isActive === true,
+      visibility: parseVisibility(req.body?.visibility) ?? "premium",
       author: userId,
     };
 
@@ -325,6 +353,15 @@ export const updateLensContent = async (
     if (req.body?.isActive !== undefined) {
       payload.isActive =
         req.body.isActive === "true" || req.body.isActive === true;
+    }
+    if (req.body?.visibility !== undefined) {
+      const next = parseVisibility(req.body.visibility);
+      if (!next) {
+        await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
+        res.status(400).json({ message: "Visibilidad inválida" });
+        return;
+      }
+      payload.visibility = next;
     }
 
     const newAttachmentEntries = attachments.map(buildAttachmentFromFile);
