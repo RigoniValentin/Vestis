@@ -21,6 +21,9 @@ export interface ILensContent extends Document {
   isPinned: boolean;
   isActive: boolean;
   visibility: LensContentVisibility;
+  // Posición manual dentro del listado de contenidos de lentes.
+  // A menor valor, más arriba aparece. Lo define Liz desde el panel de admin.
+  order: number;
   author: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -53,10 +56,19 @@ const LensContentSchema = new Schema<ILensContent>(
     },
     isPinned: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
+    order: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     visibility: {
       type: String,
       enum: ["public", "premium"],
-      default: "premium",
+      // El default del schema es "public" para que los contenidos publicados
+      // antes de existir este campo (el material abierto de Liz) no queden
+      // escondidos detras de un login. Los contenidos nuevos si se crean
+      // cerrados: eso lo define el service al crear.
+      default: "public",
       required: true,
       index: true,
     },
@@ -65,7 +77,7 @@ const LensContentSchema = new Schema<ILensContent>(
   { timestamps: true, versionKey: false }
 );
 
-LensContentSchema.index({ topic: 1, isPinned: -1, createdAt: -1 });
+LensContentSchema.index({ topic: 1, isPinned: -1, order: 1, createdAt: -1 });
 
 export const LensContentModel = mongoose.model<ILensContent>(
   "LensContent",

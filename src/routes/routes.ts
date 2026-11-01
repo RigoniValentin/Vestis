@@ -23,7 +23,7 @@ import {
   forgotPassword,
   resetPassword,
 } from "@controllers/auth/authControllers";
-import { getPermissions, verifyToken } from "@middlewares/auth";
+import { getPermissions, optionalVerifyToken, verifyToken } from "@middlewares/auth";
 import { checkRoles } from "@middlewares/roles";
 import { checkSubscription } from "@middlewares/checkSubscription";
 import {
@@ -149,9 +149,11 @@ export default () => {
     checkSubscription,
     createQuestion
   );
+  // Lectura abierta: sin token solo se devuelven las preguntas ya respondidas
+  // (contenido publico de Liz). Los miembros logueados ven ademas las suyas.
   router.get(
     "/questions",
-    verifyToken,
+    optionalVerifyToken,
     checkSubscription,
     findQuestions
   );

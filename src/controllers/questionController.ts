@@ -7,7 +7,7 @@ import { Question, QuestionResponsePayload } from "types/QuestionsTypes";
 const questionsService = new QuestionsService(new QuestionRepository());
 
 const isAdminUser = (req: Request) =>
-  req.currentUser.roles?.some((role) => role.name === "admin");
+  (req as any).currentUser?.roles?.some((role: any) => role.name === "admin");
 
 export const createQuestion = async (
   req: Request,
@@ -161,10 +161,27 @@ export const findQuestions = async (
   res: Response
 ): Promise<void> => {
   try {
-    const query: Query = { ...req.query };
+    const query: Query = {};
+    const currentUser = (req as any).currentUser;
 
-    if (!isAdminUser(req)) {
-      query.user = String(req.currentUser._id);
+    const category =
+      typeof req.query.category === "string" ? req.query.category : undefined;
+    if (category) query.category = category;
+
+    const requestedStatus =
+      typeof req.query.status === "string" ? req.query.status : undefined;
+
+    if (isAdminUser(req)) {
+      // Liz ve todo: pendientes, respondidas y rechazadas.
+      if (requestedStatus) query.status = requestedStatus;
+    } else if (currentUser) {
+      // Miembro logueado: sus propias preguntas (cualquier estado) + el
+      // contenido publico ya respondido por Liz.
+      if (requestedStatus) query.status = requestedStatus;
+      query.$or = [{ user: currentUser._id }, { status: "answered" }];
+    } else {
+      // Visitante sin cuenta: solo el contenido publico ya respondido.
+      query.status = "answered";
     }
 
     const questions = await questionsService.findQuestions(query);

@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "reconcile:paypal": "ts-node-dev --transpile-only -r tsconfig-paths/register scripts/reconcile-paypal-subscription.ts",
+    "backfill:lens-order": "ts-node-dev --transpile-only -r tsconfig-paths/register scripts/backfill-lens-content-order.ts",
     "test:coupon": "ts-node-dev --transpile-only -r tsconfig-paths/register scripts/test-coupon-flow.ts"
   },
   "keywords": [],

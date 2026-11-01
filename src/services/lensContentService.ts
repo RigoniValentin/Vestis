@@ -9,6 +9,7 @@ import {
   LensContentVisibility,
 } from "types/LensContentTypes";
 import { QnaTopic, QNA_TOPICS } from "@models/CommunityPost";
+import { Types } from "mongoose";
 
 const MAX_ATTACHMENT_ENTRIES = 6;
 const ALLOWED_VISIBILITY: LensContentVisibility[] = ["public", "premium"];
@@ -99,6 +100,14 @@ export class LensContentService implements ILensContentService {
 
     const visibility = normalizeVisibility(payload.visibility) ?? "premium";
 
+    // Si no se indica una posicion, la pieza nueva se suma al final del listado
+    // para que Liz pueda reordenarla despues desde el panel de admin.
+    const requestedOrder = Number(payload.order);
+    const order =
+      Number.isFinite(requestedOrder) && requestedOrder >= 0
+        ? Math.floor(requestedOrder)
+        : (await this.repository.getMaxOrder()) + 1;
+
     return this.repository.create({
       topic: payload.topic,
       title,
@@ -112,6 +121,7 @@ export class LensContentService implements ILensContentService {
       isPinned: !!payload.isPinned,
       isActive: payload.isActive !== undefined ? !!payload.isActive : true,
       visibility,
+      order,
       author: payload.author,
     } as LensContent);
   }
@@ -174,6 +184,13 @@ export class LensContentService implements ILensContentService {
 
     if (payload.isPinned !== undefined) update.isPinned = !!payload.isPinned;
     if (payload.isActive !== undefined) update.isActive = !!payload.isActive;
+    if (payload.order !== undefined) {
+      const nextOrder = Number(payload.order);
+      if (!Number.isFinite(nextOrder) || nextOrder < 0) {
+        throw new Error("Posición inválida.");
+      }
+      update.order = Math.floor(nextOrder);
+    }
     if (payload.visibility !== undefined) {
       const next = normalizeVisibility(payload.visibility);
       if (!next) throw new Error("Visibilidad inválida.");
@@ -206,5 +223,46 @@ export class LensContentService implements ILensContentService {
 
   async findById(id: string): Promise<LensContent | null> {
     return this.repository.findById(id);
+  }
+
+  /**
+   * Reordena el listado de contenidos de lentes.
+   * `ids` llega en el orden desired (de mas arriba a mas abajo). Cada id recibe
+   * su indice como posicion y las piezas que no fueron incluidas quedan al
+   * final, para que nunca queden dos piezas disputando la misma posicion.
+   */
+  async reorderContent(ids: string[]): Promise<LensContent[]> {
+    const cleanIds: string[] = [];
+    for (const rawId of ids) {
+      const id = String(rawId || "").trim();
+      if (!id || cleanIds.includes(id)) continue;
+      if (!Types.ObjectId.isValid(id)) continue;
+      cleanIds.push(id);
+    }
+
+    if (cleanIds.length === 0) {
+      throw new Error("No hay contenidos para reordenar.");
+    }
+
+    const all = await this.repository.find({});
+    const knownIds = new Set(all.map((item) => String(item._id)));
+    const ordered = cleanIds.filter((id) => knownIds.has(id));
+
+    if (ordered.length === 0) {
+      throw new Error("Los contenidos indicados no existen.");
+    }
+
+    const remaining = all
+      .map((item) => String(item._id))
+      .filter((id) => !ordered.includes(id));
+
+    const entries = [
+      ...ordered.map((id, index) => ({ id, order: index })),
+      ...remaining.map((id, index) => ({ id, order: ordered.length + index })),
+    ];
+
+    await this.repository.applyOrder(entries);
+
+    return this.repository.find({});
   }
 }

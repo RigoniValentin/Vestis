@@ -33,6 +33,7 @@ import {
   createLensContent,
   deleteLensContent,
   listLensContent,
+  reorderLensContent,
   toggleLensContentActive,
   toggleLensContentPin,
   updateLensContent,
@@ -67,9 +68,13 @@ router.get("/profile", verifyToken, getMyCommunityProfile);
 router.post("/profile/avatar", verifyToken, uploadAvatar, uploadOwnAvatar);
 router.delete("/profile/avatar", verifyToken, removeOwnAvatar);
 
-/* Lens content (Liz publishes standalone content for each lens) — premium only */
-router.get("/lens-content", verifyToken, listLensContent);
+/* Lens content (Liz publishes standalone content for each lens)
+   Lectura abierta: sin token se devuelve solo el contenido "public".
+   El contenido "premium" se filtra por audiencia en el controller. */
+router.get("/lens-content", optionalVerifyToken, listLensContent);
 router.get("/lens-content/admin", verifyToken, adminListLensContent);
+// Reordeno: debe declararse antes que las rutas con :id
+router.post("/lens-content/reorder", verifyToken, reorderLensContent);
 router.post(
   "/lens-content",
   verifyToken,

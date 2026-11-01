@@ -11,7 +11,14 @@ export const checkSubscription = async (
   res: Response,
   next: NextFunction
 ) => {
-  const user = await userService.findUserById(req.currentUser.id);
+  const currentUser = (req as any).currentUser;
+
+  // Sin sesion no hay suscripcion que verificar: se deja pasar igual.
+  if (!currentUser) {
+    return next();
+  }
+
+  const user = await userService.findUserById(currentUser.id);
 
   if (user) {
     // Si el usuario tiene el rol "admin", permitir el acceso sin verificar la suscripción

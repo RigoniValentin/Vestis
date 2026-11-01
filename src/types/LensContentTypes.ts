@@ -24,6 +24,7 @@ export interface LensContent extends Document {
   isPinned: boolean;
   isActive: boolean;
   visibility: LensContentVisibility;
+  order: number;
   author: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +41,7 @@ export interface LensContentCreatePayload {
   isPinned?: boolean;
   isActive?: boolean;
   visibility?: LensContentVisibility;
+  order?: number;
   author: Types.ObjectId;
 }
 
@@ -54,6 +56,7 @@ export interface LensContentUpdatePayload {
   isPinned?: boolean;
   isActive?: boolean;
   visibility?: LensContentVisibility;
+  order?: number;
 }
 
 export interface ILensContentRepository extends Repository<LensContent> {
@@ -65,6 +68,8 @@ export interface ILensContentRepository extends Repository<LensContent> {
     includeInactive?: boolean;
     audience?: LensAudienceFilter;
   }): Promise<LensContent[]>;
+  getMaxOrder(topic?: QnaTopic): Promise<number>;
+  applyOrder(entries: Array<{ id: string; order: number }>): Promise<void>;
 }
 
 export interface ILensContentService {
@@ -79,4 +84,5 @@ export interface ILensContentService {
     options?: { includeInactive?: boolean; audience?: LensAudienceFilter }
   ): Promise<LensContent[]>;
   findById(id: string): Promise<LensContent | null>;
+  reorderContent(ids: string[]): Promise<LensContent[]>;
 }

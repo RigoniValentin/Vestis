@@ -354,6 +354,15 @@ export const updateLensContent = async (
       payload.isActive =
         req.body.isActive === "true" || req.body.isActive === true;
     }
+    if (req.body?.order !== undefined) {
+      const nextOrder = Number(req.body.order);
+      if (!Number.isFinite(nextOrder) || nextOrder < 0) {
+        await Promise.all(uploadedFiles.map((file) => cleanFile(file.filename)));
+        res.status(400).json({ message: "Posición inválida" });
+        return;
+      }
+      payload.order = Math.floor(nextOrder);
+    }
     if (req.body?.visibility !== undefined) {
       const next = parseVisibility(req.body.visibility);
       if (!next) {
@@ -483,5 +492,43 @@ export const toggleLensContentActive = async (
     res.json({ success: true, data: populated || updated });
   } catch (error) {
     res.status(500).json({ message: "Error" });
+  }
+};
+
+/**
+ * Reordena el listado de contenidos de lentes (videos, imagenes, textos).
+ * Recibe los ids en el orden deseado por Liz y devuelve el listado ya ordenado.
+ */
+export const reorderLensContent = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!isAdminUser(req)) {
+      res.status(403).json({ message: "Solo admin" });
+      return;
+    }
+
+    const rawIds = req.body?.ids;
+    if (!Array.isArray(rawIds) || rawIds.length === 0) {
+      res.status(400).json({ message: "No hay contenidos para reordenar." });
+      return;
+    }
+
+    const items = await lensContentService.reorderContent(
+      rawIds.map((id: unknown) => String(id ?? ""))
+    );
+
+    items.forEach((item) => {
+      emitLensContentUpdated(item, "reorder");
+    });
+
+    res.json({ success: true, data: items });
+  } catch (error: any) {
+    console.error("reorderLensContent error:", error);
+    res.status(400).json({
+      message:
+        error instanceof Error ? error.message : "Error reordenando contenido",
+    });
   }
 };
